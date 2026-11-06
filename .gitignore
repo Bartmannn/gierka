@@ -1,0 +1,7 @@
+# Pliki tymczasowe Godota (odtwarzane przy otwarciu projektu)
+.godot/
+/android/
+
+# Eksporty gry
+/build/
+*.tmp

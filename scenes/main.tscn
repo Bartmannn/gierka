@@ -1,0 +1,23 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/view/puddle_view.gd" id="2_view"]
+[ext_resource type="Script" path="res://scripts/view/eyelids.gd" id="3_eyelids"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1_main")
+
+[node name="View" type="Node2D" parent="."]
+script = ExtResource("2_view")
+
+[node name="Eyelids" type="Node2D" parent="."]
+script = ExtResource("3_eyelids")
+
+[node name="HeartPlayer" type="AudioStreamPlayer" parent="."]
+
+[node name="WorldPlayer" type="AudioStreamPlayer" parent="."]
+
+[node name="HitPlayer" type="AudioStreamPlayer" parent="."]
+volume_db = -2.0
+
+[node name="RewardPlayer" type="AudioStreamPlayer" parent="."]
