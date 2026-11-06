@@ -2,6 +2,12 @@
 .godot/
 /android/
 
+# Godot trzymany lokalnie w folderze projektu (nie wrzucamy go do repozytorium)
+/Godot_v*.exe
+
+# Robocze kopie projektu tworzone przez Claude Code
+/.claude/worktrees/
+
 # Eksporty gry
 /build/
 *.tmp

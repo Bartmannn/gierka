@@ -26,21 +26,27 @@ Odpowiadaj po polsku, prostym językiem. Najpierw przeczytaj `docs/DESIGN.md`.
 - Sterowanie definiuje `scripts/input_setup.gd`.
 - Commituj pliki `*.gd.uid` razem ze skryptami; nie commituj katalogu `.godot/`.
 
-## Sprawdzanie zmian
-Godot nie jest zainstalowany w systemie. Pobierz go (np. do katalogu tymczasowego):
-```bash
-curl -sSLO https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip
+## Praca i sprawdzanie zmian (lokalnie, Windows)
+- Pracujemy lokalnie na Windowsie, na gałęzi `main`, w folderze projektu (`E:/Projekty/gierka`).
+  Zmiany zapisuj od razu na dysku; **przed commitem i wypchnięciem zapytaj autora**.
+- Godot leży w katalogu głównym repozytorium (pliki ignorowane przez git):
+  - `Godot_v4.7.2-stable_win64.exe`: zwykła wersja, autor gra i otwiera w niej edytor,
+  - `Godot_v4.7.2-stable_win64_console.exe`: wersja z konsolą; jej używaj do testów,
+    bo wypisuje komunikaty i zwraca kod wyjścia.
+
+Z katalogu repozytorium, w PowerShellu (kod wyjścia w `$LASTEXITCODE`):
+```powershell
+$GODOT = ".\Godot_v4.7.2-stable_win64_console.exe"
+& $GODOT --headless --path . --import                          # pierwsze uruchomienie: indeks klas
+& $GODOT --headless --path . --script res://tests/run_tests.gd # testy logiki, kod 0 = OK
+& $GODOT --headless --path . -- --autoplay --exit-when-done    # cała walka z automatem; kod 0 = nagroda
+& $GODOT --headless --path . -- --exit-when-done               # bez grania; kod 1 = omdlenie
 ```
-Potem, z katalogu repozytorium (`GODOT` = ścieżka do rozpakowanego pliku):
-```bash
-$GODOT --headless --path . --import                      # pierwsze uruchomienie: indeks klas
-$GODOT --headless --path . --script res://tests/run_tests.gd   # testy logiki, kod wyjścia 0 = OK
-$GODOT --headless --path . -- --autoplay --exit-when-done      # cała walka z automatem; kod 0 = nagroda
-$GODOT --headless --path . -- --exit-when-done                 # bez grania; kod 1 = omdlenie
-```
-Podgląd obrazu i dźwięku (klatki PNG + plik WAV) przez wirtualny ekran:
-```bash
-xvfb-run -a $GODOT --path . --rendering-driver opengl3 --write-movie /tmp/klatki/f.png --fixed-fps 30 --quit-after 700 -- --autoplay
+Podgląd obrazu i dźwięku (klatki PNG + plik WAV). Na Windowsie nie trzeba wirtualnego ekranu:
+na chwilę otworzy się okno gry. Klatki zapisuj poza repozytorium, np. w folderze tymczasowym:
+```powershell
+New-Item -ItemType Directory -Force "$env:TEMP\gierka_klatki" | Out-Null
+& $GODOT --path . --write-movie "$env:TEMP\gierka_klatki\f.png" --fixed-fps 30 --quit-after 700 -- --autoplay
 ```
 Utwór zaczyna się po intrze (2 s). Nuty w demonstracyjnym MIDI: 96 BPM, 1 ćwierćnuta = 0,625 s.
 
