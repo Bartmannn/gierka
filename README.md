@@ -8,13 +8,29 @@ Pomysł i decyzje opisuje [docs/DESIGN.md](docs/DESIGN.md).
 
 ### Las nad jeziorkiem (scena startowa)
 
-Nocny las z grafiki `grafika/sceny/las_jeziorko`, na razie bez przeciwnika:
+Nocny las z grafiki `grafika/sceny/las_jeziorko`. Przyjaciel walczy tu z bestią, wielkim dzikiem ze szkicu.
+
+- **Bestia** podchodzi, trzyma dystans i sama atakuje. **Każdy atak zapowiadają jej oczy:**
+
+  | Atak | Zapowiedź | Jak uniknąć |
+  |---|---|---|
+  | Szarża | długi, narastający błysk oczu (aż do krzyżyka z promieniami), parsknięcie, grzebanie racicą | przewrót **pod brzuchem** w chwili, gdy dobiega łeb, albo ucieczka |
+  | Cios kłami | dwa szybkie mrugnięcia, chrząknięcie | odsunąć się albo przetoczyć |
+  | Tupnięcie | oczy gasną, potem nagły rozbłysk z promieniami, głęboki wdech; staje dęba | przetoczyć się przez falę, która biegnie po ziemi |
+
+  Po ataku bestia dyszy: wtedy najlepiej ją ciąć. Cięta w spokoju szybko odpowiada atakiem.
+  Wytrzymuje 16 cięć, potem pada, oko gaśnie, a las powoli cichnie. Nową walkę zaczyna **R**.
+- **Trafienia:** cięcie w bestię sypie pomarańczowymi iskrami, na ułamek sekundy zatrzymuje walkę
+  i lekko odbija przyjaciela. Trafiony przyjaciel odlatuje do tyłu i przez chwilę miga (nietykalny).
+- **Przytomność bohatera zamiast paska zdrowia:** po każdym trafieniu powieki opadają, obraz ciemnieje,
+  świat brzmi głucho, a serce słychać coraz mocniej. Ciosy w bestię i chwila spokoju ją przywracają.
+  Po czwartym trafieniu z rzędu omdlenie: ciemność, cisza i walka od nowa.
 
 - **Przyjaciel jest żwawy jak w Hollow Knight:** biegnie (przez cały ekran w 5 s), rusza i staje
   od razu, stopy nie ślizgają się po ziemi, a spod nóg sypie się pył. W bezruchu stoi w czujnej
   postawie i oddycha. Krawędzie sylwetki łapią światło od strony księżyca.
 - **Przewrót** (unik): przysiad, kłębek, przetoczenie o 60 px, przyklęk. W środku przewrotu postać
-  będzie nietykalna, gdy pojawią się przeciwnicy.
+  jest nietykalna, a zwinięta w kłębek mieści się pod brzuchem bestii.
 - **Cięcia** przed siebie i w górę: szybki zamach i biała smuga sierpem (z góry w dół albo łukiem
   nad głową), która po ułamku sekundy rozpada się. Można ciąć w biegu; świst ostrza słychać od razu.
 - **Księżyc żyje:** przez tarczę przepływa smuga chmur, poświata powoli „oddycha” razem ze snopami światła,
@@ -53,6 +69,7 @@ W grze nie ma żadnych napisów ani pasków.
 | Przewrót | K, Shift | B, RB | prawy przycisk |
 | Cios (prototyp rytmu) | Spacja, J, Enter | A, X | lewy przycisk |
 | Od nowa | R | Start | |
+| Podgląd hitboxów (tylko z edytora) | F1 | | |
 | Wyjście | Esc | Back | |
 
 Najlepiej grać w słuchawkach.
@@ -73,6 +90,12 @@ W scenie lasu (`scenes/forest_lake.tscn`):
 
 - węzeł **Friend**: prędkość biegu, rozpędzanie i hamowanie, długość i czas przewrotu,
   czas cięcia i odstęp między cięciami, tempo oddechu,
+- węzeł **Beast**: prędkość chodu i szarży, długość zapowiedzi każdego ataku (błysku oczu),
+  czas dyszenia po ataku, przerwy między atakami, liczba cięć do pokonania,
+- węzeł **ForestLake** (główny): ile przytomności zabiera trafienie i jak szybko wraca,
+  długość zatrzymania po trafieniu, ziarno losowania ataków (ta sama walka za każdym razem),
+- klawisz **F1** w trakcie gry pokazuje ramki hitboxów: jasnoniebieska = ciało przyjaciela,
+  biała = jego cięcie, szara = ciało bestii, pomarańczowe = ataki bestii (w chwili, gdy ranią),
 - węzeł **Ambience**: jak często odzywa się sowa i pluska ryba; głośność każdej pętli
   ustawisz w jej węźle (Wind, Water, CricketLeft, CricketRight),
 - materiały warstw (np. **Sky**: szybkość chmur, siła „oddechu” poświaty; **Lake**: falowanie i iskry).
@@ -120,19 +143,22 @@ a ty pobierasz je i sprawdzasz w Godocie.
 project.godot          ustawienia projektu (480x270, pixel art, lekki renderer)
 scenes/forest_lake.tscn  scena startowa: las nad jeziorkiem, ruch postaci, dźwięki lasu
 scenes/main.tscn       scena prototypu rytmu (320x180)
-scripts/forest/        las: teren, ruch przyjaciela (FriendMotor), wygląd postaci, pył, dźwięki otoczenia
+scripts/forest/        las: teren, ruch przyjaciela (FriendMotor), wygląd przyjaciela i bestii,
+                       oko z błyskiem, fala tupnięcia, pył i iskry, dźwięki otoczenia, podgląd hitboxów
 shaders/               ruch księżyca, chmur, wody, mgły i poświata na sylwetce postaci
 grafika/               grafika od czatu graficznego (warstwy sceny, postacie, generator)
 sounds/otoczenie/      dźwięki lasu (WAV, do podmiany na nagrania)
-sounds/postac/         świst ostrza, przewrót, lądowanie
+sounds/postac/         świst ostrza, przewrót, lądowanie, trafiony
+sounds/bestia/         zapowiedzi ataków, kopyta, tupnięcie, trafienie ostrzem, ryk
 scripts/main.gd        przebieg walki: intro → walka → cisza → nagroda / omdlenie
 scripts/midi/          czytanie plików MIDI
 scripts/music/         utwór: role ścieżek, nuty gracza (Cue), kursor po nutach
-scripts/fight/         ocena trafień (Judge)
+scripts/fight/         ocena trafień w rytm (Judge), logika walki w lesie: bestia (BeastBrain),
+                       hitboxy (HitboxMath), przebieg walki i przytomność (ForestFight)
 scripts/audio/         syntezator: serce, boss, tło, szczęk oręża
 scripts/view/          obraz: kałuża, księżyc, fale, błyski, powieki, paleta
 music/prototyp.mid     utwór prototypu
-tools/                 generatory: demonstracyjne MIDI, klatki ruchu postaci, dźwięki lasu
+tools/                 generatory: demonstracyjne MIDI, klatki przyjaciela i bestii, wszystkie dźwięki
 tests/                 testy logiki
 docs/DESIGN.md         ustalenia projektowe
 ```

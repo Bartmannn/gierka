@@ -36,6 +36,24 @@
 [ext_resource type="AudioStream" path="res://sounds/postac/swist_3.wav" id="a_swing3"]
 [ext_resource type="AudioStream" path="res://sounds/postac/przewrot.wav" id="a_roll"]
 [ext_resource type="AudioStream" path="res://sounds/postac/ladowanie.wav" id="a_land"]
+[ext_resource type="AudioStream" path="res://sounds/postac/trafiony.wav" id="a_hurt"]
+[ext_resource type="Script" path="res://scripts/forest/beast.gd" id="5_beast"]
+[ext_resource type="Script" path="res://scripts/forest/eye_glint.gd" id="6_eye"]
+[ext_resource type="Script" path="res://scripts/forest/shockwave_view.gd" id="7_wave"]
+[ext_resource type="Script" path="res://scripts/forest/hitbox_debug.gd" id="8_hitboxes"]
+[ext_resource type="Texture2D" path="res://grafika/postacie/bestia_ruch.png" id="t_beast"]
+[ext_resource type="Shader" path="res://shaders/consciousness.gdshader" id="s_senses"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/parskniecie.wav" id="b_snort"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/chrzakniecie.wav" id="b_grunt"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/wdech.wav" id="b_inhale"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/kopyto_1.wav" id="b_hoof1"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/kopyto_2.wav" id="b_hoof2"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/kopyto_3.wav" id="b_hoof3"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/tupniecie.wav" id="b_stomp"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/trafienie_1.wav" id="b_hit1"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/trafienie_2.wav" id="b_hit2"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/trafienie_3.wav" id="b_hit3"]
+[ext_resource type="AudioStream" path="res://sounds/bestia/ryk.wav" id="b_roar"]
 
 [sub_resource type="ShaderMaterial" id="m_sky"]
 shader = ExtResource("s_sky")
@@ -60,6 +78,13 @@ shader_parameter/phase = 2.0
 
 [sub_resource type="ShaderMaterial" id="m_rim"]
 shader = ExtResource("s_rim")
+
+[sub_resource type="ShaderMaterial" id="m_beast"]
+shader = ExtResource("s_rim")
+shader_parameter/clip_to_ground = true
+
+[sub_resource type="ShaderMaterial" id="m_senses"]
+shader = ExtResource("s_senses")
 
 [node name="ForestLake" type="Node2D"]
 script = ExtResource("1_scene")
@@ -105,6 +130,48 @@ centered = false
 texture = ExtResource("t8")
 centered = false
 
+[node name="Beast" type="Node2D" parent="."]
+position = Vector2(370, 205)
+script = ExtResource("5_beast")
+charge_sound = ExtResource("b_snort")
+tusk_sound = ExtResource("b_grunt")
+stomp_sound = ExtResource("b_inhale")
+step_sounds = Array[AudioStream]([ExtResource("b_hoof1"), ExtResource("b_hoof2"), ExtResource("b_hoof3")])
+hit_sounds = Array[AudioStream]([ExtResource("b_hit1"), ExtResource("b_hit2"), ExtResource("b_hit3")])
+
+[node name="Sprite" type="Sprite2D" parent="Beast"]
+material = SubResource("m_beast")
+texture = ExtResource("t_beast")
+centered = false
+offset = Vector2(-104, -108)
+hframes = 8
+vframes = 7
+
+[node name="Eye" type="Node2D" parent="Beast"]
+script = ExtResource("6_eye")
+
+[node name="Voice" type="AudioStreamPlayer2D" parent="Beast"]
+volume_db = -6.0
+max_distance = 1200.0
+
+[node name="Steps" type="AudioStreamPlayer2D" parent="Beast"]
+volume_db = -12.0
+max_distance = 1200.0
+
+[node name="Impact" type="AudioStreamPlayer2D" parent="Beast"]
+stream = ExtResource("b_stomp")
+volume_db = -3.0
+max_distance = 1200.0
+
+[node name="Hit" type="AudioStreamPlayer2D" parent="Beast"]
+volume_db = -6.0
+max_distance = 1200.0
+
+[node name="Roar" type="AudioStreamPlayer2D" parent="Beast"]
+stream = ExtResource("b_roar")
+volume_db = -4.0
+max_distance = 1200.0
+
 [node name="Friend" type="Node2D" parent="."]
 position = Vector2(120, 188)
 script = ExtResource("2_friend")
@@ -118,7 +185,7 @@ texture = ExtResource("t_friend")
 centered = false
 offset = Vector2(-40, -69)
 hframes = 8
-vframes = 5
+vframes = 6
 
 [node name="Slash" type="Sprite2D" parent="Friend"]
 visible = false
@@ -146,12 +213,44 @@ stream = ExtResource("a_land")
 volume_db = -10.0
 max_distance = 1200.0
 
+[node name="Hurt" type="AudioStreamPlayer2D" parent="Friend"]
+stream = ExtResource("a_hurt")
+volume_db = -6.0
+max_distance = 1200.0
+
+[node name="Shockwave" type="Node2D" parent="."]
+script = ExtResource("7_wave")
+
 [node name="Dust" type="Node2D" parent="."]
 script = ExtResource("4_dust")
+
+[node name="Sparks" type="Node2D" parent="."]
+script = ExtResource("4_dust")
+lifetime = Vector2(0.1, 0.28)
+colors = Array[Color]([Color(1, 0.541176, 0.239216, 1), Color(1, 0.541176, 0.239216, 1), Color(0.827451, 0.87451, 0.917647, 1)])
+speed = 2.4
+gravity = 140.0
 
 [node name="Foreground" type="Sprite2D" parent="."]
 texture = ExtResource("t10")
 centered = false
+
+[node name="Hitboxes" type="Node2D" parent="."]
+script = ExtResource("8_hitboxes")
+
+[node name="Camera" type="Camera2D" parent="."]
+position = Vector2(240, 135)
+
+[node name="Heart" type="AudioStreamPlayer" parent="."]
+volume_db = -42.0
+
+[node name="Senses" type="CanvasLayer" parent="."]
+
+[node name="Consciousness" type="ColorRect" parent="Senses"]
+material = SubResource("m_senses")
+offset_right = 480.0
+offset_bottom = 270.0
+mouse_filter = 2
 
 [node name="Ambience" type="Node2D" parent="."]
 script = ExtResource("3_ambience")

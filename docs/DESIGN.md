@@ -30,6 +30,7 @@ Dokument zbiera decyzje projektowe. Gdy coś się zmieni, poprawiamy go tutaj,
 | Zdrowie (przytomność bohatera) | opadające powieki, ciemnienie obrazu, przygasający księżyc, przytłumiony świat, coraz głośniejsze serce |
 | Tempo | puls serca: księżyc w wodzie lekko pulsuje, od jego środka rozchodzi się fala |
 | Nadchodzący cios | fala zbiegająca się na wodzie i rosnący błysk ostrza w kolorze akcentu; najjaśniejszy w chwili ciosu |
+| Atak przeciwnika (scena lasu) | błysk w oczach w kolorze księżyca; każdy atak ma własny wzór (narastanie, mrugnięcia, zgaśnięcie i rozbłysk) i własny dźwięk zapowiedzi |
 | Trafienie | ciepła fala, iskry, ciepłe światło odbite w wodzie, czysty szczęk oręża |
 | Chybienie | ciemna fala, wstrząs obrazu, brakująca nuta w utworze |
 | Pytanie bossa | kroki bossa rozkołysują taflę z daleka |
@@ -89,5 +90,8 @@ Dokument zbiera decyzje projektowe. Gdy coś się zmieni, poprawiamy go tutaj,
    animowany księżyc (chmury, poświata), woda, mgła i dźwięki lasu. Bez przeciwnika.
 3. **Ruch bojowy (zrobiony, bez przeciwnika):** żwawy bieg, przewrót (unik), cięcia przed siebie i w górę
    z białą smugą, w stylu Hollow Knight, bez skoku. Cięcia nie są jeszcze powiązane z rytmem MIDI.
-4. **Następny test: walka w odbiciu.** Sylwetki przyjaciela i bossa w kałuży, odwrócenie obrazu,
+4. **Pierwszy przeciwnik (zrobiony):** bestia-dzik ze szkicu, trzy ataki (szarża, cios kłami, tupnięcie z falą),
+   każdy zapowiedziany innym błyskiem oczu; hitboxy; przytomność bohatera zamiast zdrowia; po wygranej las cichnie.
+   Ataki wybiera na razie prosta sztuczna inteligencja, a docelowo mają wynikać z nut MIDI.
+5. **Następny test: walka w odbiciu.** Sylwetki przyjaciela i bossa w kałuży, odwrócenie obrazu,
    sprawdzenie czytelności szybkich ataków.

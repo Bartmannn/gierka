@@ -38,6 +38,7 @@ const ACTIONS := {
 		"mouse": [MOUSE_BUTTON_LEFT],
 	},
 	"restart": {"keys": [KEY_R], "pad": [JOY_BUTTON_START], "mouse": []},
+	"debug_hitboxes": {"keys": [KEY_F1], "pad": [], "mouse": []},  # podgląd hitboxów (tylko wersja robocza)
 	"quit": {"keys": [KEY_ESCAPE], "pad": [JOY_BUTTON_BACK], "mouse": []},
 }
 

@@ -3,7 +3,7 @@ extends Node2D
 ## Dźwięki nocnego lasu. Pętle (wiatr, woda, świerszcze) grają cały czas i na starcie
 ## powoli się pojawiają. Sowa i plusk ryby odzywają się co jakiś czas, z różnych miejsc.
 ## Dźwięki z miejscem w scenie (AudioStreamPlayer2D) słychać z lewej albo z prawej strony.
-## Pliki leżą w sounds/otoczenie/ (wylicza je tools/make_ambience.gd); można je podmienić na nagrania.
+## Pliki leżą w sounds/otoczenie/ (wylicza je tools/make_sounds.gd); można je podmienić na nagrania.
 
 ## Ile sekund trwa pojawianie się dźwięków na starcie sceny.
 @export var fade_in := 4.0
@@ -44,6 +44,17 @@ func _process(delta: float) -> void:
 		_splash.pitch_scale = randf_range(0.9, 1.1)
 		_splash.play()
 		_splash_wait = randf_range(splash_every.x, splash_every.y)
+
+
+## Las cichnie: wszystkie dźwięki powoli gasną, sowa i ryba już się nie odzywają.
+func fade_out(seconds: float) -> void:
+	_owl_wait = INF
+	_splash_wait = INF
+	for child in get_children():
+		if child is AudioStreamPlayer or child is AudioStreamPlayer2D:
+			var tween := create_tween()
+			tween.tween_property(child, "volume_db", -60.0, seconds).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+			tween.tween_callback(child.stop)
 
 
 ## Pętla zaczyna od losowego miejsca (żeby nie było słychać zawsze tego samego początku)

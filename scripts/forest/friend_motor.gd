@@ -7,9 +7,26 @@ extends RefCounted
 ## - bieg rusza i staje prawie od razu,
 ## - cięcie można zrobić w biegu; w trakcie zamachu postać się nie odwraca,
 ## - przewrót przerywa cięcie, pokonuje zawsze ten sam dystans i przez chwilę chroni przed ciosem,
-## - wciśnięcie trochę przed końcem poprzedniej akcji jest zapamiętane (bufor).
+## - wciśnięcie trochę przed końcem poprzedniej akcji jest zapamiętane (bufor),
+## - trafiony przyjaciel odlatuje do tyłu, przez chwilę nie słucha sterowania i miga (nietykalny).
+##
+## Prostokąty ciała i cięć (hitboxy) są opisane względem stóp postaci zwróconej w prawo
+## (zob. HitboxMath); świat ich używa w ForestFight.
 
-enum State { IDLE, RUN, ROLL, ATTACK_SIDE, ATTACK_UP }
+enum State { IDLE, RUN, ROLL, ATTACK_SIDE, ATTACK_UP, HURT }
+
+## Ciało stojącej postaci, przykucniętej (początek i koniec przewrotu) i zwiniętej w kłębek.
+## Kłębek jest niższy niż brzuch bestii, więc można się pod nią przetoczyć.
+const BODY_STAND := Rect2(-6, -46, 12, 46)
+const BODY_CROUCH := Rect2(-7, -30, 14, 30)
+const BODY_BALL := Rect2(-7, -16, 14, 16)
+## Zasięg cięć (tam, gdzie widać białą smugę).
+const SLASH_SIDE := Rect2(4, -58, 32, 54)
+const SLASH_UP := Rect2(-24, -62, 50, 32)
+## Kiedy cięcie rani (s od początku zamachu) - tyle, ile narasta smuga.
+const SLASH_ACTIVE := Vector2(0.03, 0.12)
+## Część przewrotu, w której postać jest zwinięta w kłębek.
+const BALL_PART := Vector2(0.12, 0.75)
 
 # --- parametry (ustawia je friend.gd z wartości w Inspektorze) ---
 var run_speed := 96.0         ## px/s
@@ -21,6 +38,10 @@ var roll_cooldown := 0.18     ## s od końca przewrotu do następnego
 var attack_time := 0.26       ## s, tyle trwa poza cięcia
 var attack_cooldown := 0.32   ## s od początku cięcia do następnego
 var buffer_time := 0.12       ## s, tyle wciśnięcie czeka na swoją kolej
+var hurt_time := 0.25         ## s odrzutu po trafieniu (bez sterowania)
+var hurt_knockback := 150.0   ## px/s, prędkość odrzutu
+var hurt_invulnerable := 1.0  ## s nietykalności po trafieniu
+var recoil_speed := 90.0      ## px/s, odbicie do tyłu po trafieniu bestii cięciem
 var min_x := ForestTerrain.WALK_MIN_X
 var max_x := ForestTerrain.WALK_MAX_X
 
@@ -33,6 +54,10 @@ var facing := 1
 var state_time := 0.0
 ## Droga przebyta w bieżącym biegu - według niej zmieniają się klatki biegu.
 var run_distance := 0.0
+## Numer zamachu - jedno cięcie może trafić tylko raz.
+var swing_id := 0
+## Ile jeszcze sekund trwa nietykalność po trafieniu.
+var invulnerable_left := 0.0
 
 var _attack_wait := 0.0
 var _roll_wait := 0.0
@@ -56,7 +81,14 @@ func update(delta: float, axis: float, up_held: bool, attack_pressed: bool,
 		_roll_buffer = buffer_time
 	_attack_wait = maxf(0.0, _attack_wait - delta)
 	_roll_wait = maxf(0.0, _roll_wait - delta)
+	invulnerable_left = maxf(0.0, invulnerable_left - delta)
 	state_time += delta
+
+	if state == State.HURT:
+		_update_hurt(delta)
+		_attack_buffer -= delta
+		_roll_buffer -= delta
+		return _events
 
 	if state == State.ROLL and state_time >= roll_time:
 		_finish_roll(axis)
@@ -82,9 +114,56 @@ func is_attacking() -> bool:
 	return state == State.ATTACK_SIDE or state == State.ATTACK_UP
 
 
-## W środku przewrotu postać nie obrywa (początek i koniec przewrotu już tak).
+## W środku przewrotu i chwilę po trafieniu postać nie obrywa.
 func is_invulnerable() -> bool:
+	return is_rolling_safe() or invulnerable_left > 0.0 or state == State.HURT
+
+
+## Środek przewrotu (początek i koniec przewrotu nie chronią).
+func is_rolling_safe() -> bool:
 	return state == State.ROLL and state_time > 0.04 and state_time < roll_time - 0.06
+
+
+## Ciało postaci (względem stóp, zwróconej w prawo).
+func body_box() -> Rect2:
+	if state == State.ROLL:
+		var t := action_progress()
+		return BODY_BALL if t >= BALL_PART.x and t < BALL_PART.y else BODY_CROUCH
+	return BODY_STAND
+
+
+## Zasięg cięcia, gdy właśnie rani; w przeciwnym razie Rect2() (brak).
+func slash_box() -> Rect2:
+	if not is_attacking() or state_time < SLASH_ACTIVE.x or state_time >= SLASH_ACTIVE.y:
+		return Rect2()
+	return SLASH_UP if state == State.ATTACK_UP else SLASH_SIDE
+
+
+## Bestia (albo jej atak) trafiła przyjaciela; from_x: skąd przyszedł cios.
+func take_hit(from_x: float) -> void:
+	state = State.HURT
+	state_time = 0.0
+	var away := 1.0 if x >= from_x else -1.0
+	velocity = away * hurt_knockback
+	facing = -int(away)  # trafiony patrzy na to, co go uderzyło
+	invulnerable_left = hurt_invulnerable
+	_attack_buffer = 0.0
+	_roll_buffer = 0.0
+	_events.append(&"hurt")
+
+
+## Cięcie trafiło bestię: lekkie odbicie do tyłu (jak w Hollow Knight, tylko przy cięciu przed siebie).
+func on_hit_landed() -> void:
+	if state == State.ATTACK_SIDE:
+		velocity -= facing * recoil_speed
+
+
+func _update_hurt(delta: float) -> void:
+	velocity = move_toward(velocity, 0.0, hurt_knockback / hurt_time * delta)
+	x = clampf(x + velocity * delta, min_x, max_x)
+	if state_time >= hurt_time:
+		state = State.IDLE
+		velocity = 0.0
 
 
 ## Postęp bieżącej akcji 0..1 (do wyboru klatki).
@@ -98,6 +177,7 @@ func _start_attack(axis: float, up: bool) -> void:
 		facing = 1 if axis > 0.0 else -1  # cięcie w stronę wciśniętego kierunku
 	state = State.ATTACK_UP if up else State.ATTACK_SIDE
 	state_time = 0.0
+	swing_id += 1
 	_attack_wait = attack_cooldown
 	_attack_buffer = 0.0
 	_events.append(&"swing")

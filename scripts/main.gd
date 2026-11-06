@@ -18,7 +18,6 @@ extends Node
 
 enum State { INTRO, FIGHT, SILENCE, REWARD, END, FAINTED }
 
-const WORLD_BUS := "World"
 
 @export_file("*.mid") var song_path := "res://music/prototyp.mid"
 
@@ -279,7 +278,7 @@ func _update_senses(delta: float) -> void:
 		_:
 			eyelids.openness = awake
 	if state == State.FIGHT:
-		_world_lowpass.cutoff_hz = 500.0 * pow(40.0, c)  # 500 Hz (głucho) .. 20 kHz (wyraźnie)
+		_world_lowpass.cutoff_hz = AudioBuses.muffle_cutoff(c)
 		world_player.volume_db = lerpf(-8.0, 0.0, c)
 		heart_player.volume_db = lerpf(3.0, 0.0, c)
 	else:
@@ -287,16 +286,8 @@ func _update_senses(delta: float) -> void:
 
 
 func _setup_audio_buses() -> void:
-	if AudioServer.get_bus_index(WORLD_BUS) == -1:
-		AudioServer.add_bus()
-		var index := AudioServer.bus_count - 1
-		AudioServer.set_bus_name(index, WORLD_BUS)
-		AudioServer.set_bus_send(index, "Master")
-		AudioServer.add_bus_effect(index, AudioEffectLowPassFilter.new())
-	_world_lowpass = AudioServer.get_bus_effect(AudioServer.get_bus_index(WORLD_BUS), 0)
-	world_player.bus = WORLD_BUS
-	if AudioServer.get_bus_effect_count(0) == 0:
-		AudioServer.add_bus_effect(0, AudioEffectHardLimiter.new())  # chroni przed przesterowaniem
+	_world_lowpass = AudioBuses.ensure_world_bus()
+	world_player.bus = AudioBuses.WORLD
 
 
 ## Liczy cały dźwięk przed walką, żeby w trakcie gry nic nie obciążało komputera.

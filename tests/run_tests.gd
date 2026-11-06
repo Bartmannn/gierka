@@ -23,6 +23,12 @@ func _init() -> void:
 	test_motor_roll()
 	test_motor_attack_cooldown_and_buffer()
 	test_motor_attack_keeps_facing()
+	test_slash_hits_beast_once()
+	test_roll_under_charge()
+	test_hits_lower_consciousness()
+	test_eye_glint_patterns()
+	test_stomp_waves_and_bounds()
+	test_beast_dies()
 	print("%d sprawdzeń, %d błędów" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
 
@@ -163,7 +169,7 @@ func test_friend_stands_on_ground() -> void:
 func test_friend_sprite_sheet() -> void:
 	var sheet := (load("res://grafika/postacie/przyjaciel_ruch.png") as Texture2D).get_image()
 	var size := Friend.FRAME_SIZE
-	check(sheet.get_size() == Vector2i(size.x * Friend.COLUMNS, size.y * 5), "arkusz postaci ma 8x5 klatek 80x72")
+	check(sheet.get_size() == Vector2i(size.x * Friend.COLUMNS, size.y * Friend.ROWS), "arkusz postaci ma 8x6 klatek 80x72")
 	# Ostatni wiersz nad ziemią (68) musi dotykać: stanie, postawienie stopy w biegu, cały przewrót, cięcia.
 	var grounded := {
 		Friend.ROW_IDLE: range(Friend.IDLE_FRAMES),
@@ -171,6 +177,7 @@ func test_friend_sprite_sheet() -> void:
 		Friend.ROW_ROLL: range(Friend.ROLL_FRAMES),
 		Friend.ROW_ATTACK_SIDE: range(Friend.ATTACK_FRAMES),
 		Friend.ROW_ATTACK_UP: range(Friend.ATTACK_FRAMES),
+		Friend.ROW_HURT: range(2),
 	}
 	for row: int in grounded:
 		for k: int in grounded[row]:
@@ -282,3 +289,167 @@ func test_motor_attack_keeps_facing() -> void:
 	check(motor.x < 200.0, "w trakcie cięcia można się przesuwać")
 	_run_motor(motor, 0.3, -1.0)
 	check(motor.facing == -1 and motor.state == FriendMotor.State.RUN, "po cięciu odwraca się i biegnie")
+
+
+# --- Walka z bestią (ForestFight, BeastBrain) --------------------------------------
+
+## Walka z bestią, która sama nie atakuje ani nie chodzi (ataki wywołuje test).
+func _quiet_fight() -> ForestFight:
+	var fight := ForestFight.new()
+	fight.beast.passive = true
+	fight.beast.walk_speed = 0.0
+	fight.beast.x = 380.0
+	fight.beast.facing = -1
+	fight.friend.x = 268.0
+	return fight
+
+
+func _step_fight(fight: ForestFight, seconds: float, axis: float = 0.0, up: bool = false,
+		attack_at: float = -1.0) -> Array[Dictionary]:
+	var all: Array[Dictionary] = []
+	var t := 0.0
+	while t < seconds - 0.0001:
+		var press := attack_at >= 0.0 and t <= attack_at and t + STEP > attack_at
+		all.append_array(fight.step(STEP, axis, up, press, false))
+		t += STEP
+	return all
+
+
+func _count(events: Array[Dictionary], type: StringName) -> int:
+	return events.filter(func(e: Dictionary) -> bool: return e.type == type).size()
+
+
+func test_slash_hits_beast_once() -> void:
+	var fight := _quiet_fight()
+	var events := _step_fight(fight, 0.6, 0.0, false, 0.0)
+	check(_count(events, &"beast_hit") == 1, "jedno cięcie trafia bestię dokładnie raz")
+	check(fight.beast.health == fight.beast.max_health - 1, "bestia traci jeden punkt życia")
+	fight.friend.x = 150.0
+	events = _step_fight(fight, 0.6, 0.0, false, 0.0)
+	check(_count(events, &"beast_hit") == 0, "cięcie z daleka nie trafia")
+	fight.friend.x = 270.0
+	events = _step_fight(fight, 0.6, 0.0, true, 0.0)
+	check(_count(events, &"beast_hit") == 1, "cięcie w górę trafia łeb nad postacią")
+
+
+func test_roll_under_charge() -> void:
+	# stojący przyjaciel obrywa od szarży
+	var fight := _quiet_fight()
+	fight.friend.x = 230.0
+	fight.beast.start_attack(BeastBrain.Attack.CHARGE)
+	var events := _step_fight(fight, 2.5)
+	check(_count(events, &"friend_hit") == 1, "szarża trafia stojącego")
+	# przewrót w stronę bestii w dobrej chwili: przejście pod brzuchem
+	fight = _quiet_fight()
+	fight.friend.x = 230.0
+	fight.beast.start_attack(BeastBrain.Attack.CHARGE)
+	var hits := 0
+	var rolled := false
+	var t := 0.0
+	while t < 2.5:
+		var roll := false
+		var boxes := fight.beast.attack_boxes()
+		if not rolled and fight.beast.state == BeastBrain.State.ATTACK and not boxes.is_empty():
+			var gap := boxes[0].position.x - fight.friend_body().end.x
+			if gap < 28.0:
+				roll = true
+				rolled = true
+		hits += _count(fight.step(STEP, 1.0 if roll else 0.0, false, false, roll), &"friend_hit")
+		t += STEP
+	check(rolled and hits == 0, "przewrót pod szarżą chroni przed ciosem (trafień: %d)" % hits)
+	check(fight.friend.x > fight.beast.x, "po przewrocie przyjaciel jest za bestią")
+
+
+func test_hits_lower_consciousness() -> void:
+	var fight := _quiet_fight()
+	fight.regen_delay = 999.0
+	fight.heal_per_hit = 0.0
+	var hit_times: Array[float] = []
+	var t := 0.0
+	while t < 20.0 and fight.outcome == ForestFight.Outcome.FIGHTING:
+		if fight.beast.state == BeastBrain.State.IDLE and not fight.friend.is_invulnerable():
+			fight.friend.x = 300.0
+			fight.beast.start_attack(BeastBrain.Attack.TUSK)
+		if _count(fight.step(STEP, 0.0, false, false, false), &"friend_hit") > 0:
+			hit_times.append(t)
+		t += STEP
+	check(hit_times.size() == 4 and fight.outcome == ForestFight.Outcome.FAINTED,
+		"4 trafienia = omdlenie (trafień: %d)" % hit_times.size())
+	var shortest := 99.0
+	for i in range(1, hit_times.size()):
+		shortest = minf(shortest, hit_times[i] - hit_times[i - 1])
+	check(shortest >= fight.friend.hurt_invulnerable, "po trafieniu chwila nietykalności (%.2f s)" % shortest)
+
+
+## Poziomy błysku oczu w kolejnych chwilach zapowiedzi danego ataku.
+func _glints(kind: BeastBrain.Attack) -> Array[int]:
+	var beast := BeastBrain.new()
+	beast.passive = true
+	beast.start_attack(kind)
+	var levels: Array[int] = []
+	while beast.state == BeastBrain.State.TELEGRAPH:
+		levels.append(beast.eye_glint())
+		beast.update(STEP, 0.0)
+	return levels
+
+
+func test_eye_glint_patterns() -> void:
+	var charge := _glints(BeastBrain.Attack.CHARGE)
+	var rising := true
+	for i in range(1, charge.size()):
+		rising = rising and charge[i] >= charge[i - 1]
+	check(rising and charge.front() == 1 and charge.back() == 3, "szarża: błysk narasta od 1 do 3")
+	var tusk := _glints(BeastBrain.Attack.TUSK)
+	var flashes := 0
+	for i in tusk.size():
+		if tusk[i] > 0 and (i == 0 or tusk[i - 1] == 0):
+			flashes += 1
+	check(flashes == 2, "cios kłami: dwa mrugnięcia (jest %d)" % flashes)
+	var stomp := _glints(BeastBrain.Attack.STOMP)
+	check(stomp.front() == -1 and stomp.back() == 3, "tupnięcie: oczy gasną, potem rozbłysk")
+	var lengths := [charge.size(), tusk.size(), stomp.size()]
+	check(lengths[0] > lengths[2] and lengths[2] > lengths[1], "zapowiedzi: szarża najdłuższa, kły najkrótsze")
+
+
+func test_stomp_waves_and_bounds() -> void:
+	var beast := BeastBrain.new()
+	beast.passive = true
+	beast.x = 300.0
+	beast.start_attack(BeastBrain.Attack.STOMP)
+	var t := 0.0
+	var max_waves := 0
+	var events: Array[StringName] = []
+	while t < 0.9:
+		events.append_array(beast.update(STEP, 100.0))
+		max_waves = maxi(max_waves, beast.waves.size())
+		t += STEP
+	check(events.has(&"stomp") and max_waves == 2, "tupnięcie wypuszcza dwie fale")
+	if beast.waves.size() == 2:
+		var w := beast.waves
+		check(w[0].y == 1.0 and w[1].y == -1.0 and w[0].x > w[1].x, "fale biegną w obie strony")
+	while t < 5.0:
+		beast.update(STEP, 100.0)
+		t += STEP
+	check(beast.waves.is_empty(), "fale znikają przy krawędziach sceny")
+	# długa walka z przyjacielem skaczącym po scenie: bestia nie wychodzi poza arenę
+	var brain := BeastBrain.new(7)
+	var inside := true
+	t = 0.0
+	while t < 60.0:
+		brain.update(STEP, 40.0 if fmod(t, 10.0) < 5.0 else 440.0)
+		inside = inside and brain.x >= brain.min_x and brain.x <= brain.max_x
+		t += STEP
+	check(inside, "bestia zostaje na arenie")
+	check(brain._history.size() >= 10, "bestia sama atakuje (ataków w minutę: %d)" % brain._history.size())
+
+
+func test_beast_dies() -> void:
+	var beast := BeastBrain.new()
+	for i in beast.max_health:
+		beast.take_hit()
+	check(beast.state == BeastBrain.State.DYING, "po %d cięciach bestia pada" % beast.max_health)
+	for i in 120:
+		beast.update(STEP, 0.0)
+	check(beast.state == BeastBrain.State.DEAD and beast.eye_glint() == -1, "martwa bestia, oko zgasło")
+	check(not beast.start_attack(BeastBrain.Attack.CHARGE) and beast.attack_boxes().is_empty(),
+		"martwa bestia nie atakuje")

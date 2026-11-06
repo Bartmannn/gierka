@@ -1,10 +1,12 @@
 extends SceneTree
 ## Wylicza dźwięki nocnego lasu i postaci; zapisuje je jako pliki WAV:
 ##   sounds/otoczenie/  wiatr, woda, świerszcze, sowa, plusk, kroki
-##   sounds/postac/     świst ostrza (3 warianty), przewrót, lądowanie po przewrocie
+##   sounds/postac/     świst ostrza (3 warianty), przewrót, lądowanie po przewrocie, trafiony
+##   sounds/bestia/     zapowiedzi ataków (parsknięcie, chrząknięcie, wdech), kopyta,
+##                      tupnięcie, trafienie ostrzem (3 warianty), ryk przy upadku
 ##
 ## Uruchom z katalogu projektu:
-##   Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tools/make_ambience.gd
+##   Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tools/make_sounds.gd
 ##
 ## Pliki są gotowe do podmiany na prawdziwe nagrania: wystarczy zapisać nowy plik pod tą samą nazwą.
 ## Pętle (wiatr, woda, świerszcze) mają w pliku zapisany punkt zapętlenia, a ich koniec
@@ -18,7 +20,7 @@ var _rng := RandomNumberGenerator.new()
 
 
 func _init() -> void:
-	for sub in ["otoczenie", "postac"]:
+	for sub in ["otoczenie", "postac", "bestia"]:
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR + sub))
 	var started := Time.get_ticks_msec()
 	_rng.seed = 7
@@ -34,6 +36,16 @@ func _init() -> void:
 		_save("postac/swist_%d.wav" % (i + 1), [_swing(60 + i)], false)
 	_save("postac/przewrot.wav", [_roll_rustle()], false)
 	_save("postac/ladowanie.wav", [_land()], false)
+	_save("postac/trafiony.wav", [_friend_hurt()], false)
+	_save("bestia/parskniecie.wav", [_snort()], false)
+	_save("bestia/chrzakniecie.wav", [_normalize(_growl(115.0, 80.0, 0.32, 0.6, 520.0, 91), 0.7)], false)
+	_save("bestia/wdech.wav", [_inhale()], false)
+	for i in 3:
+		_save("bestia/kopyto_%d.wav" % (i + 1), [_hoof(100 + i)], false)
+	_save("bestia/tupniecie.wav", [_stomp_boom()], false)
+	for i in 3:
+		_save("bestia/trafienie_%d.wav" % (i + 1), [_blade_hit(110 + i)], false)
+	_save("bestia/ryk.wav", [_roar()], false)
 	print("Dźwięki zapisane w %s (%d ms)" % [OUT_DIR, Time.get_ticks_msec() - started])
 	quit()
 
@@ -243,6 +255,143 @@ func _land() -> PackedFloat32Array:
 		ph += TAU * (70.0 - 30.0 * t / 0.12) / RATE
 		out[j] += sin(ph) * exp(-t / 0.035)
 	return _normalize(out, 0.7)
+
+
+## Trafiony przyjaciel: głuche uderzenie, szarpnięcie płaszcza i krótki, zduszony oddech.
+func _friend_hurt() -> PackedFloat32Array:
+	_rng.seed = 85
+	var out := PackedFloat32Array()
+	out.resize(int(0.35 * RATE))
+	var ph := 0.0
+	for j in int(0.1 * RATE):
+		var t := float(j) / RATE
+		ph += TAU * (95.0 - 35.0 * t / 0.1) / RATE
+		out[j] += sin(ph) * exp(-t / 0.045)
+	_mix_wrapped(out, _noise_burst(1500.0, 0.9, 0.005, 0.07), 0, 0.5)
+	_mix_wrapped(out, _noise_burst(750.0, 2.0, 0.03, 0.06), int(0.04 * RATE), 0.45)
+	return _normalize(out, 0.7)
+
+
+# ---------------------------------------------------------------- bestia
+
+## Pomruk: ton o kształcie piły przepuszczony przez „gardło” (filtr pasmowy), szorstki
+## (głośność drga losowo), od wysokości f0 do f1.
+func _growl(f0: float, f1: float, duration: float, rough: float, formant: float, seed_value: int) -> PackedFloat32Array:
+	_rng.seed = seed_value
+	var n := int(duration * RATE)
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var throat := Biquad.bandpass(formant, 1.2, RATE)
+	var ph := 0.0
+	var wobble := 0.0
+	for j in n:
+		var t := float(j) / RATE
+		var f := lerpf(f0, f1, t / duration) * (1.0 + 0.03 * sin(TAU * 7.0 * t))
+		ph += TAU * f / RATE
+		var saw := 0.0
+		for h in range(1, 9):
+			saw += sin(h * ph) / h
+		wobble += 0.08 * (_rng.randf_range(-1.0, 1.0) - wobble)
+		var env := smoothstep(0.0, 0.04, t) * smoothstep(duration, duration - 0.12, t)
+		out[j] = (throat.process(saw) * 1.5 + saw * 0.25) * (1.0 + rough * wobble * 4.0) * env
+	return out
+
+
+## Parsknięcie przed szarżą: dwa ostre wydmuchy przez ryj i pomruk pod spodem.
+func _snort() -> PackedFloat32Array:
+	_rng.seed = 92
+	var out := _growl(75.0, 65.0, 0.55, 0.8, 380.0, 93)
+	for k in out.size():
+		out[k] *= 0.5
+	for at: float in [0.0, 0.2]:
+		var puff := _noise_burst(700.0, 0.8, 0.01, 0.07)
+		for j in puff.size():
+			puff[j] *= 0.7 + 0.3 * sin(TAU * 32.0 * float(j) / RATE)  # trzepot nozdrzy
+		_mix_wrapped(out, puff, int(at * RATE), 1.0)
+	return _normalize(out, 0.7)
+
+
+## Głęboki wdech przed tupnięciem: szum, którego barwa rośnie, i narastający pomruk.
+func _inhale() -> PackedFloat32Array:
+	_rng.seed = 94
+	var n := int(0.6 * RATE)
+	var out := _growl(60.0, 78.0, 0.6, 0.5, 300.0, 95)
+	var filter := Biquad.bandpass(400.0, 1.0, RATE)
+	for j in n:
+		var t := float(j) / RATE
+		if j % 32 == 0:
+			filter.set_bandpass(400.0 * pow(3.5, t / 0.6), 1.0, RATE)
+		var env := smoothstep(0.0, 0.5, t) * smoothstep(0.6, 0.52, t)
+		out[j] = out[j] * 0.4 * env + filter.process(_rng.randf_range(-1.0, 1.0)) * env * 2.0
+	return _normalize(out, 0.6)
+
+
+## Kopyto: ciężkie stąpnięcie i chrzęst ściółki.
+func _hoof(seed_value: int) -> PackedFloat32Array:
+	_rng.seed = seed_value
+	var out := PackedFloat32Array()
+	out.resize(int(0.18 * RATE))
+	var ph := 0.0
+	var f := _rng.randf_range(50.0, 62.0)
+	for j in int(0.12 * RATE):
+		var t := float(j) / RATE
+		ph += TAU * (f - 20.0 * t / 0.12) / RATE
+		out[j] += sin(ph) * exp(-t / 0.05)
+	_mix_wrapped(out, _noise_burst(_rng.randf_range(1300.0, 1800.0), 0.9, 0.003, 0.04), 0, 0.45)
+	return _normalize(out, 0.7)
+
+
+## Tupnięcie: niski huk, dudnienie ziemi i trzask, z echem lasu.
+func _stomp_boom() -> PackedFloat32Array:
+	_rng.seed = 96
+	var n := int(1.0 * RATE)
+	var out := PackedFloat32Array()
+	out.resize(n)
+	var ph := 0.0
+	var low := 0.0
+	var a := 1.0 - exp(-TAU * 300.0 / RATE)
+	for j in n:
+		var t := float(j) / RATE
+		ph += TAU * (55.0 - 25.0 * minf(1.0, t / 0.4)) / RATE
+		low += a * (_rng.randf_range(-1.0, 1.0) - low)
+		out[j] = sin(ph) * exp(-t / 0.25) + low * 2.5 * exp(-t / 0.35)
+	_mix_wrapped(out, _noise_burst(2000.0, 0.7, 0.002, 0.02), 0, 0.5)
+	return _normalize(_forest_echo(out), 0.85)
+
+
+## Ostrze trafia bestię: mięsiste uderzenie, „chlap” i krótki dźwięk stali.
+func _blade_hit(seed_value: int) -> PackedFloat32Array:
+	_rng.seed = seed_value
+	var out := PackedFloat32Array()
+	out.resize(int(0.3 * RATE))
+	var ph := 0.0
+	var f := _rng.randf_range(125.0, 150.0)
+	for j in int(0.1 * RATE):
+		var t := float(j) / RATE
+		ph += TAU * (f - 40.0 * t / 0.1) / RATE
+		out[j] += sin(ph) * exp(-t / 0.05)
+	_mix_wrapped(out, _noise_burst(_rng.randf_range(800.0, 1000.0), 1.0, 0.002, 0.05), 0, 0.6)
+	_mix_wrapped(out, _noise_burst(4200.0, 1.2, 0.001, 0.012), 0, 0.35)
+	for partial: Vector3 in [Vector3(1900.0, 0.5, 0.12), Vector3(3100.0, 0.35, 0.09), Vector3(4400.0, 0.25, 0.06)]:
+		var pf := partial.x * _rng.randf_range(0.97, 1.03)
+		for j in out.size():
+			var t := float(j) / RATE
+			out[j] += sin(TAU * pf * t) * partial.y * exp(-t / partial.z) * 0.22
+	return _normalize(out, 0.75)
+
+
+## Ryk przy upadku: długi, opadający pomruk z chrapliwym oddechem i echem lasu.
+func _roar() -> PackedFloat32Array:
+	var out := _growl(85.0, 40.0, 1.6, 0.9, 380.0, 97)
+	_rng.seed = 98
+	var breath := Biquad.bandpass(900.0, 0.8, RATE)
+	for j in out.size():
+		var t := float(j) / RATE
+		out[j] += breath.process(_rng.randf_range(-1.0, 1.0)) * 0.6 * exp(-t / 0.8)
+	var tail := PackedFloat32Array()
+	tail.resize(int(0.6 * RATE))
+	out.append_array(tail)
+	return _normalize(_forest_echo(out), 0.75)
 
 
 # ---------------------------------------------------------------- klocki

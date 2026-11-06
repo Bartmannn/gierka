@@ -5,7 +5,8 @@ extends SceneTree
 ##   Godot_v4.7.2-stable_win64_console.exe --headless --path . --script res://tools/make_friend_sprites.gd
 ## Wynik:
 ##   grafika/postacie/przyjaciel_ruch.png   klatki 80x72; rzędy: 0 stanie (4), 1 bieg (8),
-##                                          2 przewrót (8), 3 cięcie przed siebie (5), 4 cięcie w górę (5)
+##                                          2 przewrót (8), 3 cięcie przed siebie (5), 4 cięcie w górę (5),
+##                                          5 trafiony (2)
 ##   grafika/efekty/ciecie.png              smuga cięcia, klatki 80x72; rząd 0 przed siebie, 1 w górę (po 5)
 ##   grafika/podglady/*_x4.png              powiększone podglądy obu arkuszy
 ##
@@ -19,12 +20,13 @@ const FRAME := Vector2i(80, 72)
 ## jest więc dokładnie symetryczne i postać nie przeskakuje przy obrocie.
 const FEET := Vector2(40, 69)
 const COLUMNS := 8
-const ROWS := 5
+const ROWS := 6
 const IDLE_FRAMES := 4
 const RUN_FRAMES := 8
 const ROLL_FRAMES := 8
 const ATTACK_FRAMES := 5
 const SLASH_FRAMES := 5
+const HURT_FRAMES := 2
 ## Bieg: na jeden cykl (dwa kroki) przypada RUN_CYCLE px drogi, stopa stoi na ziemi
 ## przez RUN_STANCE cyklu, a resztę czasu jest w powietrzu (faza lotu).
 const RUN_CYCLE := 48.0
@@ -52,27 +54,39 @@ const SHEET_PATH := "res://grafika/postacie/przyjaciel_ruch.png"
 const SLASH_PATH := "res://grafika/efekty/ciecie.png"
 const PREVIEW_DIR := "res://grafika/podglady/"
 
-var _mask := PackedByteArray()
+const PixelCanvas := preload("res://tools/pixel_canvas.gd")
+
+var _c := PixelCanvas.new(FRAME, FEET)
 
 
 func _init() -> void:
 	var sheet := Image.create_empty(FRAME.x * COLUMNS, FRAME.y * ROWS, false, Image.FORMAT_RGBA8)
 	for k in IDLE_FRAMES:
-		_blit(sheet, _draw_idle(k), k, 0)
+		_draw_idle(k)
+		_c.blit(sheet, k, 0, COLORS)
 	for k in RUN_FRAMES:
-		_blit(sheet, _draw_run(k), k, 1)
+		_draw_run(k)
+		_c.blit(sheet, k, 1, COLORS)
 	for k in ROLL_FRAMES:
-		_blit(sheet, _draw_roll(k), k, 2)
+		_draw_roll(k)
+		_c.blit(sheet, k, 2, COLORS)
 	for k in ATTACK_FRAMES:
-		_blit(sheet, _draw_attack_side(k), k, 3)
-		_blit(sheet, _draw_attack_up(k), k, 4)
+		_draw_attack_side(k)
+		_c.blit(sheet, k, 3, COLORS)
+		_draw_attack_up(k)
+		_c.blit(sheet, k, 4, COLORS)
+	for k in HURT_FRAMES:
+		_draw_hurt(k)
+		_c.blit(sheet, k, 5, COLORS)
 
 	var slash := Image.create_empty(FRAME.x * SLASH_FRAMES, FRAME.y * 2, false, Image.FORMAT_RGBA8)
 	for k in SLASH_FRAMES:
 		# przed siebie: z góry (za głową) w dół przed postacią
-		_blit(slash, _draw_slash(k, Vector2(4, -29), 27.0, -115.0, 70.0), k, 0)
+		_draw_slash(k, Vector2(4, -29), 27.0, -115.0, 70.0)
+		_c.blit(slash, k, 0, COLORS)
 		# w górę: od przodu, nad głową, do tyłu
-		_blit(slash, _draw_slash(k, Vector2(1, -31), 26.0, -20.0, -165.0), k, 1)
+		_draw_slash(k, Vector2(1, -31), 26.0, -20.0, -165.0)
+		_c.blit(slash, k, 1, COLORS)
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://grafika/efekty"))
 	var err := _save(sheet, SHEET_PATH, "przyjaciel_ruch_x4.png")
@@ -95,7 +109,7 @@ func _save(img: Image, path: String, preview_name: String) -> int:
 
 ## Stanie: czujna poza - lekko ugięte kolana, ostrze przed sobą; oddech podnosi ramiona o 1 px.
 func _draw_idle(k: int) -> PackedByteArray:
-	_clear()
+	_c.clear()
 	var hip := Vector2(0, -18)
 	var breath := Vector2(0, -1 if k >= 2 else 0)
 	_figure({
@@ -105,13 +119,13 @@ func _draw_idle(k: int) -> PackedByteArray:
 		"blade": Vector2(1, 0.35), "blade_len": 14,
 		"stream": 0.0, "wave": float(k) / IDLE_FRAMES, "flutter": 0.6,
 	})
-	return _mask
+	return _c.mask
 
 
 ## Bieg: mocne pochylenie, długi krok z fazą lotu, ręce pracują, płaszcz i szal powiewają.
 ## Klatki 0 i 4 to postawienie stopy.
 func _draw_run(k: int) -> PackedByteArray:
-	_clear()
+	_c.clear()
 	var phase := float(k) / RUN_FRAMES
 	var hip := Vector2(0, -18 + roundf(cos(TAU * 2.0 * (phase - RUN_STANCE * 0.5))))
 	var near := _run_foot(phase)
@@ -128,7 +142,7 @@ func _draw_run(k: int) -> PackedByteArray:
 		"blade": Vector2(-0.9, 0.45), "blade_len": 14,
 		"stream": 1.0, "wave": phase * 2.0, "flutter": 1.6,
 	})
-	return _mask
+	return _c.mask
 
 
 ## Położenie stopy w cyklu biegu (względem bioder). Na ziemi stopa jedzie do tyłu
@@ -146,7 +160,7 @@ func _run_foot(phase: float) -> Dictionary:
 ## Przewrót: przysiad, zwinięcie w kłębek, jeden pełny obrót (obwód kłębka to mniej więcej
 ## długość przewrotu), przyklęk i wstawanie.
 func _draw_roll(k: int) -> PackedByteArray:
-	_clear()
+	_c.clear()
 	match k:
 		0:
 			var hip := Vector2(1, -12)
@@ -179,7 +193,7 @@ func _draw_roll(k: int) -> PackedByteArray:
 			# klatki 1-5: kłębek obraca się o ćwierć obrotu na klatkę
 			var center := Vector2(4 if k == 1 else 2, -9.0)
 			_ball(center, (k - 1) * PI * 0.5, k)
-	return _mask
+	return _c.mask
 
 
 ## Zwinięta postać: kłębek z wystającą głową, kapturem, kolanami i powiewającym płaszczem.
@@ -187,17 +201,17 @@ func _ball(center: Vector2, angle: float, k: int) -> void:
 	var head_dir := Vector2.from_angle(0.3 + angle)  # na starcie głowa z przodu, lekko w dole
 	# płaszcz zawsze ciągnie się za kłębkiem
 	var fl := roundf(1.5 * sin(k * 1.7))
-	_poly([
+	_c.poly([
 		center + Vector2(-3, -8), center + Vector2(-13, -6 + fl), center + Vector2(-17, -2 + fl),
 		center + Vector2(-12, -1), center + Vector2(-14, 3 - fl), center + Vector2(-6, 5),
 	], BODY)
-	_ellipse(center, Vector2(9.5, 9.0), BODY)
+	_c.ellipse(center, Vector2(9.5, 9.0), BODY)
 	var head := center + head_dir * 7.5
-	_ellipse(head, Vector2(4.2, 4.2), BODY)
+	_c.ellipse(head, Vector2(4.2, 4.2), BODY)
 	var hood_dir := Vector2.from_angle(0.3 + angle - 2.3)
-	_poly([head + hood_dir.orthogonal() * 2.0, head + hood_dir * 9.0, head - hood_dir.orthogonal() * 2.0], BODY)
-	_ellipse(center - head_dir * 7.0, Vector2(3.5, 3.5), BODY)  # kolana
-	_polyline([head, head + Vector2(-6, -1), head + Vector2(-11, fl)], 2.0, BODY)  # szal
+	_c.poly([head + hood_dir.orthogonal() * 2.0, head + hood_dir * 9.0, head - hood_dir.orthogonal() * 2.0], BODY)
+	_c.ellipse(center - head_dir * 7.0, Vector2(3.5, 3.5), BODY)  # kolana
+	_c.polyline([head, head + Vector2(-6, -1), head + Vector2(-11, fl)], 2.0, BODY)  # szal
 	# ostrze błyska przy krawędzi kłębka
 	var edge_dir := Vector2.from_angle(0.3 + angle + 1.4)
 	_blade(center + edge_dir * 7.0, edge_dir.orthogonal() * -1.0, 7)
@@ -205,7 +219,7 @@ func _ball(center: Vector2, angle: float, k: int) -> void:
 
 ## Cięcie przed siebie: zamach nad głową, cios z wypadem w dół przed postacią, powrót.
 func _draw_attack_side(k: int) -> PackedByteArray:
-	_clear()
+	_c.clear()
 	var lunge: float = [0.0, 1.0, 3.0, 3.0, 2.0][k]
 	var hip := Vector2(lunge * 0.6, -18)
 	var neck_off: Vector2 = [Vector2(-1, -14), Vector2(2, -14), Vector2(5, -13), Vector2(5, -13), Vector2(3, -14)][k]
@@ -219,12 +233,12 @@ func _draw_attack_side(k: int) -> PackedByteArray:
 		"blade": Vector2.from_angle(deg_to_rad(angle)), "blade_len": 16 if k == 2 else 15,
 		"stream": stream, "wave": k * 0.2, "flutter": 1.2,
 	})
-	return _mask
+	return _c.mask
 
 
 ## Cięcie w górę: ostrze z dołu przed postacią przechodzi łukiem nad głową do tyłu.
 func _draw_attack_up(k: int) -> PackedByteArray:
-	_clear()
+	_c.clear()
 	var hip := Vector2(0, [-17.0, -18.0, -19.5, -19.0, -18.0][k])
 	var neck_off: Vector2 = [Vector2(2, -13), Vector2(2, -14), Vector2(1, -15), Vector2(-1, -15), Vector2(1, -14)][k]
 	var hand: Vector2 = [Vector2(7, 5), Vector2(8, -4), Vector2(2, -11), Vector2(-4, -9), Vector2(2, 4)][k]
@@ -236,7 +250,22 @@ func _draw_attack_up(k: int) -> PackedByteArray:
 		"blade": Vector2.from_angle(deg_to_rad(angle)), "blade_len": 16 if k == 2 else 15,
 		"stream": 0.3 + 0.15 * k, "wave": k * 0.2, "flutter": 1.2,
 	})
-	return _mask
+	return _c.mask
+
+
+## Trafiony: odrzut z odchyleniem do tyłu i rękami w górze, potem zachwianie.
+func _draw_hurt(k: int) -> PackedByteArray:
+	_c.clear()
+	var hip := Vector2(-1, -18 if k == 0 else -17)
+	_figure({
+		"hip": hip, "neck": hip + (Vector2(-4, -13) if k == 0 else Vector2(-2, -14)),
+		"near_foot": Vector2(5, 0), "far_foot": Vector2(-6, 0),
+		"near_hand": Vector2(6, -3) if k == 0 else Vector2(5, 6),
+		"far_hand": Vector2(5, -5) if k == 0 else Vector2(3, 7),
+		"blade": Vector2(0.4, -1.0) if k == 0 else Vector2(1.0, 0.6), "blade_len": 13,
+		"stream": 0.0, "wave": 0.3 * k, "flutter": 1.6,
+	})
+	return _c.mask
 
 
 ## Cała postać w jednej pozie. Dłonie podaje się względem barku. Pola słownika:
@@ -255,14 +284,14 @@ func _figure(p: Dictionary) -> void:
 	var far_shoulder := neck - fwd * 1.5 - up * 1.5
 
 	# ręka za ciałem
-	_line(far_shoulder, far_shoulder + (p.far_hand as Vector2), 2.5, BODY)
+	_c.line(far_shoulder, far_shoulder + (p.far_hand as Vector2), 2.5, BODY)
 
 	# nogi
 	_leg(hip, p.near_foot, p.get("near_lift", false))
 	if p.has("far_knee"):
 		var sole: Vector2 = p.far_foot + Vector2(0, -1)
-		_line(hip, p.far_knee, 4.0, BODY)
-		_line(p.far_knee, sole, 3.0, BODY)
+		_c.line(hip, p.far_knee, 4.0, BODY)
+		_c.line(p.far_knee, sole, 3.0, BODY)
 	else:
 		_leg(hip, p.far_foot, p.get("far_lift", false))
 
@@ -280,22 +309,22 @@ func _figure(p: Dictionary) -> void:
 	cloak.append(last.lerp(hem_end, 0.8) + Vector2(0, 1.5))
 	cloak.append(hem_end)
 	cloak.append(hip + Vector2(1, -2))
-	_poly(cloak, BODY)
+	_c.poly(cloak, BODY)
 
 	# tułów i szyja
-	_poly([hip - fwd * 4.0 - up, hip + fwd * 4.0 - up, neck + fwd * 4.0 + up, neck - fwd * 4.0 - up], BODY)
-	_line(neck, neck + up * 3.0 + fwd, 3.0, BODY)
+	_c.poly([hip - fwd * 4.0 - up, hip + fwd * 4.0 - up, neck + fwd * 4.0 + up, neck - fwd * 4.0 - up], BODY)
+	_c.line(neck, neck + up * 3.0 + fwd, 3.0, BODY)
 
 	# głowa i kaptur ze szpicem odchylonym do tyłu
 	var head := neck + up * 6.5 + fwd * 1.5
-	_ellipse(head, Vector2(4.6, 5.0), BODY)
+	_c.ellipse(head, Vector2(4.6, 5.0), BODY)
 	var tip := head + Vector2(-9.5 - 3.0 * stream + roundf(flutter * 0.6 * sin(wave * TAU + 2.0)), -9.5 + 4.0 * stream)
-	_poly([head + Vector2(-0.5, -3.5), tip, head + Vector2(-3.5, -1.5)], BODY)
+	_c.poly([head + Vector2(-0.5, -3.5), tip, head + Vector2(-3.5, -1.5)], BODY)
 
 	# szal
 	var w1 := roundf(flutter * sin(wave * TAU + 1.0))
 	var w2 := roundf(flutter * 1.4 * sin(wave * TAU + 2.2))
-	_polyline([
+	_c.polyline([
 		neck + up * 0.5, neck + Vector2(-5, -1),
 		neck + Vector2(-10 - 4 * stream, 1 + w1 - 2 * stream),
 		neck + Vector2(-15 - 6 * stream, w2 - 3 * stream),
@@ -303,7 +332,7 @@ func _figure(p: Dictionary) -> void:
 
 	# ręka z ostrzem (bliżej widza)
 	var hand: Vector2 = shoulder + (p.near_hand as Vector2)
-	_line(shoulder, hand, 2.5, BODY)
+	_c.line(shoulder, hand, 2.5, BODY)
 	var blade: Vector2 = p.blade
 	if blade != Vector2.ZERO:
 		_blade(hand, blade.normalized(), p.blade_len)
@@ -312,9 +341,9 @@ func _figure(p: Dictionary) -> void:
 func _leg(hip: Vector2, foot: Vector2, lifted: bool) -> void:
 	var sole := foot + Vector2(0, -1)  # podeszwa: 2 wiersze tuż nad ziemią
 	var knee := _knee(hip, sole)
-	_line(hip, knee, 4.0, BODY)
-	_line(knee, sole, 3.0, BODY)
-	_line(sole + Vector2(-1, 0), sole + Vector2(3, 1 if lifted else 0), 2.0, BODY)  # but
+	_c.line(hip, knee, 4.0, BODY)
+	_c.line(knee, sole, 3.0, BODY)
+	_c.line(sole + Vector2(-1, 0), sole + Vector2(3, 1 if lifted else 0), 2.0, BODY)  # but
 
 
 ## Kolano z dwóch odcinków o długości LEG; zgina się zawsze do przodu.
@@ -332,13 +361,13 @@ func _knee(hip: Vector2, foot: Vector2) -> Vector2:
 ## Ostrze: rękojeść w kolorze sylwetki, potem stal; pod stalą ciemny pasek, żeby miało grubość.
 func _blade(hand: Vector2, dir: Vector2, length: int) -> void:
 	for i in length + 1:
-		var p := _to_pixel(hand + dir * float(i))
+		var p := _c.to_pixel(hand + dir * float(i))
 		if i < 2:
-			_px_put(p, BODY)
+			_c.put(p, BODY)
 			continue
-		_px_put(p, STEEL_DARK if i < 4 else STEEL)
-		if _px_get(p + Vector2i(0, 1)) == EMPTY:
-			_px_put(p + Vector2i(0, 1), BODY)
+		_c.put(p, STEEL_DARK if i < 4 else STEEL)
+		if _c.get_px(p + Vector2i(0, 1)) == EMPTY:
+			_c.put(p + Vector2i(0, 1), BODY)
 
 
 # ---------------------------------------------------------------- smuga cięcia
@@ -348,7 +377,7 @@ func _blade(hand: Vector2, dir: Vector2, length: int) -> void:
 ## czołowa krawędź), klatki 3-4: rozpada się ditheringiem. Tylko czubek smugi jest biały,
 ## żeby efekt był wyraźny, ale nie oślepiał.
 func _draw_slash(k: int, pivot: Vector2, radius: float, from: float, to: float) -> PackedByteArray:
-	_clear()
+	_c.clear()
 	var lead: float = [0.35, 0.7, 1.0, 1.0, 1.0][k]
 	var tail: float = [0.0, 0.0, 0.1, 0.35, 0.6][k]
 	var keep: float = [1.0, 1.0, 1.0, 0.55, 0.3][k]
@@ -357,7 +386,7 @@ func _draw_slash(k: int, pivot: Vector2, radius: float, from: float, to: float) 
 	var inner_center := pivot - middle * 11.0  # przesunięte koło wycina środek: sierp
 	for py in int(FEET.y):
 		for px in FRAME.x:
-			var c := _center(px, py)
+			var c := _c.center(px, py)
 			var r := c.distance_to(pivot)
 			if r > radius or c.distance_to(inner_center) <= radius:
 				continue
@@ -383,88 +412,5 @@ func _draw_slash(k: int, pivot: Vector2, radius: float, from: float, to: float) 
 			elif threshold < keep:
 				value = GLOW if outer and k == 3 else MIST
 			if value != EMPTY:
-				_px_put(Vector2i(px, py), value)
-	return _mask
-
-
-# ---------------------------------------------------------------- rysowanie na siatce
-# Współrzędne w pikselach względem stóp (FEET); y rośnie w dół. Piksel jest zapalony,
-# gdy jego środek leży w kształcie - bez wygładzania.
-
-func _clear() -> void:
-	_mask = PackedByteArray()
-	_mask.resize(FRAME.x * FRAME.y)
-
-
-func _to_pixel(local: Vector2) -> Vector2i:
-	return Vector2i(floori(local.x + FEET.x), floori(local.y + FEET.y))
-
-
-func _center(px: int, py: int) -> Vector2:
-	return Vector2(px + 0.5 - FEET.x, py + 0.5 - FEET.y)
-
-
-func _px_get(p: Vector2i) -> int:
-	if p.x < 0 or p.y < 0 or p.x >= FRAME.x or p.y >= int(FEET.y):
-		return EMPTY
-	return _mask[p.y * FRAME.x + p.x]
-
-
-func _px_put(p: Vector2i, value: int) -> void:
-	# wiersz FEET.y i niżej to ziemia - nic tam nie rysujemy
-	if p.x < 0 or p.y < 0 or p.x >= FRAME.x or p.y >= int(FEET.y):
-		return
-	_mask[p.y * FRAME.x + p.x] = value
-
-
-func _bounds(points: Array, pad: float) -> Rect2i:
-	var lo := Vector2(INF, INF)
-	var hi := Vector2(-INF, -INF)
-	for p: Vector2 in points:
-		lo = lo.min(p)
-		hi = hi.max(p)
-	var a := _to_pixel(lo - Vector2(pad, pad))
-	var b := _to_pixel(hi + Vector2(pad, pad))
-	return Rect2i(a, b - a + Vector2i.ONE)
-
-
-func _line(a: Vector2, b: Vector2, width: float, value: int) -> void:
-	var r := _bounds([a, b], width)
-	var half := width * 0.5
-	for py in range(r.position.y, r.end.y):
-		for px in range(r.position.x, r.end.x):
-			var c := _center(px, py)
-			if c.distance_to(Geometry2D.get_closest_point_to_segment(c, a, b)) <= half:
-				_px_put(Vector2i(px, py), value)
-
-
-func _polyline(points: Array[Vector2], width: float, value: int) -> void:
-	for i in points.size() - 1:
-		_line(points[i], points[i + 1], width, value)
-
-
-func _poly(points: Array[Vector2], value: int) -> void:
-	var packed := PackedVector2Array(points)
-	var r := _bounds(points, 1.0)
-	for py in range(r.position.y, r.end.y):
-		for px in range(r.position.x, r.end.x):
-			if Geometry2D.is_point_in_polygon(_center(px, py), packed):
-				_px_put(Vector2i(px, py), value)
-
-
-func _ellipse(center: Vector2, radii: Vector2, value: int) -> void:
-	var r := _bounds([center - radii, center + radii], 1.0)
-	for py in range(r.position.y, r.end.y):
-		for px in range(r.position.x, r.end.x):
-			var d := (_center(px, py) - center) / radii
-			if d.length_squared() <= 1.0:
-				_px_put(Vector2i(px, py), value)
-
-
-func _blit(sheet: Image, mask: PackedByteArray, column: int, row: int) -> void:
-	var at := Vector2i(column * FRAME.x, row * FRAME.y)
-	for py in FRAME.y:
-		for px in FRAME.x:
-			var v := mask[py * FRAME.x + px]
-			if v != EMPTY:
-				sheet.set_pixel(at.x + px, at.y + py, COLORS[v])
+				_c.put(Vector2i(px, py), value)
+	return _c.mask

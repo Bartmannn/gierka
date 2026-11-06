@@ -1,8 +1,9 @@
 class_name Friend
 extends Node2D
-## Przyjaciel bohatera: postać, którą steruje gracz. Biega, robi przewroty i tnie
-## przed siebie albo w górę (jak w Hollow Knight). Zasady ruchu są w `FriendMotor`;
-## ten skrypt dobiera do nich klatki, białą smugę cięcia, dźwięki i pył spod stóp.
+## Przyjaciel bohatera: wygląd i dźwięk dobrane do logiki ruchu (FriendMotor).
+## Sam niczego nie liczy - co klatkę dostaje od sceny zdarzenia walki i dobiera klatkę,
+## białą smugę cięcia, dźwięki i pył. Biega, robi przewroty, tnie przed siebie albo w górę
+## (jak w Hollow Knight); trafiony odlatuje do tyłu i przez chwilę miga.
 ##
 ## Klatki: grafika/postacie/przyjaciel_ruch.png, smuga: grafika/efekty/ciecie.png
 ## (rysuje je tools/make_friend_sprites.gd). Węzeł stoi w miejscu stóp:
@@ -10,11 +11,13 @@ extends Node2D
 
 const FRAME_SIZE := Vector2i(80, 72)
 const COLUMNS := 8
+const ROWS := 6
 const ROW_IDLE := 0
 const ROW_RUN := 1
 const ROW_ROLL := 2
 const ROW_ATTACK_SIDE := 3
 const ROW_ATTACK_UP := 4
+const ROW_HURT := 5
 const IDLE_FRAMES := 4
 const RUN_FRAMES := 8
 const ROLL_FRAMES := 8
@@ -27,6 +30,7 @@ const RUN_CONTACT_FRAMES: Array[int] = [0, 4]
 ## powrót do postawy trochę dłuższy.
 const ATTACK_FRAME_ENDS: Array[float] = [0.12, 0.24, 0.42, 0.65, 1.0]
 ## Smuga pojawia się zaraz po zamachu i ma 5 klatek po 0,03 s (3 narastania, 2 zanikania).
+## Rani dokładnie wtedy, gdy narasta (FriendMotor.SLASH_ACTIVE).
 const SLASH_START := 0.03
 const SLASH_FRAME_TIME := 0.03
 const SLASH_FRAMES := 5
@@ -54,6 +58,11 @@ const SLASH_FRAMES := 5
 @export var attack_cooldown := 0.32
 ## Jak długo zapamiętane jest wciśnięcie przed końcem poprzedniej akcji (s).
 @export var buffer_time := 0.12
+@export_group("Trafienie")
+## Ile sekund postać jest nietykalna po trafieniu (miga).
+@export var hurt_invulnerable := 1.0
+## Prędkość odrzutu po trafieniu (px/s).
+@export var hurt_knockback := 150.0
 @export_group("Dźwięki i efekty")
 ## Dźwięki kroków; przy każdym kroku losowany jest jeden, z lekko zmienioną wysokością.
 @export var step_sounds: Array[AudioStream] = []
@@ -62,8 +71,8 @@ const SLASH_FRAMES := 5
 ## Węzeł z pyłem spod stóp.
 @export var dust: DustPuff
 
-var motor := FriendMotor.new()
-var _idle_time := 0.0
+var motor: FriendMotor
+var _time := 0.0
 var _run_frame := -1
 var _slash_time := -1.0  # czas od początku cięcia; mniej niż 0 = smugi nie ma
 var _slash_row := 0
@@ -74,55 +83,60 @@ var _slash_row := 0
 @onready var _swing: AudioStreamPlayer2D = $Swing
 @onready var _roll: AudioStreamPlayer2D = $Roll
 @onready var _land: AudioStreamPlayer2D = $Land
+@onready var _hurt: AudioStreamPlayer2D = $Hurt
 
 
-func _ready() -> void:
-	motor.run_speed = run_speed
-	motor.acceleration = acceleration
-	motor.deceleration = deceleration
-	motor.roll_distance = roll_distance
-	motor.roll_time = roll_time
-	motor.roll_cooldown = roll_cooldown
-	motor.attack_time = attack_time
-	motor.attack_cooldown = attack_cooldown
-	motor.buffer_time = buffer_time
-	motor.x = position.x
-	_steps.stream = _shuffle(step_sounds, 1.12, 2.5)
-	_swing.stream = _shuffle(swing_sounds, 1.08, 1.5)
+## Przekazuje logice ustawienia z Inspektora i podłącza ją do tego węzła.
+func configure(m: FriendMotor) -> void:
+	motor = m
+	m.run_speed = run_speed
+	m.acceleration = acceleration
+	m.deceleration = deceleration
+	m.roll_distance = roll_distance
+	m.roll_time = roll_time
+	m.roll_cooldown = roll_cooldown
+	m.attack_time = attack_time
+	m.attack_cooldown = attack_cooldown
+	m.buffer_time = buffer_time
+	m.hurt_invulnerable = hurt_invulnerable
+	m.hurt_knockback = hurt_knockback
+	m.x = position.x
+	_steps.stream = shuffle(step_sounds, 1.12, 2.5)
+	_swing.stream = shuffle(swing_sounds, 1.08, 1.5)
 	_slash.visible = false
 	_place()
 	_show(ROW_IDLE, 0)
 
 
-func _process(delta: float) -> void:
-	var events := motor.update(delta,
-			Input.get_axis("move_left", "move_right"),
-			Input.is_action_pressed("aim_up"),
-			Input.is_action_just_pressed("attack"),
-			Input.is_action_just_pressed("roll"))
-	for event in events:
-		_on_motor_event(event)
+## Jedna klatka obrazu. delta = 0 w czasie zatrzymania po trafieniu (obraz stoi).
+func present(delta: float, events: Array[Dictionary]) -> void:
+	for e in events:
+		match e.type:
+			&"friend_swing":
+				_swing.play()  # od razu, w tej samej klatce co wciśnięcie
+				_slash_time = 0.0
+				_slash_row = 1 if motor.state == FriendMotor.State.ATTACK_UP else 0
+			&"friend_roll_start":
+				_roll.play()
+				_slash_time = -1.0
+				_dust(-motor.facing, 6)
+			&"friend_roll_land":
+				_land.play()
+				_dust(0.0, 5)
+			&"friend_run_start":
+				_dust(-motor.facing, 3)
+			&"friend_turn":
+				_dust(-motor.facing, 4)
+			&"friend_hit":
+				_hurt.play()
+				_slash_time = -1.0
+				_dust(0.0, 4)
+	_time += delta
 	_animate(delta)
+	# po trafieniu postać miga, dopóki jest nietykalna
+	_sprite.visible = motor.invulnerable_left <= 0.0 or motor.state == FriendMotor.State.HURT \
+			or int(_time * 16.0) % 2 == 0
 	_place()
-
-
-func _on_motor_event(event: StringName) -> void:
-	match event:
-		&"swing":
-			_swing.play()  # od razu, w tej samej klatce co wciśnięcie
-			_slash_time = 0.0
-			_slash_row = 1 if motor.state == FriendMotor.State.ATTACK_UP else 0
-		&"roll_start":
-			_roll.play()
-			_slash_time = -1.0
-			_dust(-motor.facing, 6)
-		&"roll_land":
-			_land.play()
-			_dust(0.0, 5)
-		&"run_start":
-			_dust(-motor.facing, 3)
-		&"turn":
-			_dust(-motor.facing, 4)
 
 
 func _animate(delta: float) -> void:
@@ -144,16 +158,19 @@ func _animate(delta: float) -> void:
 				frame += 1
 			var row := ROW_ATTACK_UP if motor.state == FriendMotor.State.ATTACK_UP else ROW_ATTACK_SIDE
 			_show(row, frame)
+		FriendMotor.State.HURT:
+			_run_frame = -1
+			_show(ROW_HURT, 0 if motor.state_time < motor.hurt_time * 0.5 else 1)
 		_:
 			_run_frame = -1
-			_idle_time += delta
-			_show(ROW_IDLE, int(_idle_time * idle_fps) % IDLE_FRAMES)
+			_show(ROW_IDLE, int(_time * idle_fps) % IDLE_FRAMES)
 	_animate_slash(delta)
 
 
 ## Biała smuga: krótka, kilka klatek, potem znika. Przesuwa się razem z postacią.
 func _animate_slash(delta: float) -> void:
 	if _slash_time < 0.0:
+		_slash.visible = false
 		return
 	_slash_time += delta
 	var k := int((_slash_time - SLASH_START) / SLASH_FRAME_TIME)
@@ -187,10 +204,11 @@ func _dust(direction: float, count: int) -> void:
 		dust.puff(position, direction, count)
 
 
-static func _shuffle(sounds: Array[AudioStream], pitch: float, volume_db: float) -> AudioStreamRandomizer:
-	var shuffle := AudioStreamRandomizer.new()
-	shuffle.random_pitch = pitch
-	shuffle.random_volume_offset_db = volume_db
+## Losuje jeden z dźwięków przy każdym odtworzeniu, z lekko zmienioną wysokością i głośnością.
+static func shuffle(sounds: Array[AudioStream], pitch: float, volume_db: float) -> AudioStreamRandomizer:
+	var randomizer := AudioStreamRandomizer.new()
+	randomizer.random_pitch = pitch
+	randomizer.random_volume_offset_db = volume_db
 	for sound in sounds:
-		shuffle.add_stream(-1, sound)
-	return shuffle
+		randomizer.add_stream(-1, sound)
+	return randomizer
