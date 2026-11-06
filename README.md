@@ -4,7 +4,27 @@ Mroczna gra 2D o walkach z bossami, w której muzyka powstaje w trakcie walki.
 Gracz widzi świat oczami rannego bohatera i steruje jego przyjacielem. Walkę widać w odbiciu w kałuży.
 Pomysł i decyzje opisuje [docs/DESIGN.md](docs/DESIGN.md).
 
-## Co jest teraz: prototyp rytmu
+## Co jest teraz
+
+### Las nad jeziorkiem (scena startowa)
+
+Nocny las z grafiki `grafika/sceny/las_jeziorko`, na razie bez przeciwnika:
+
+- **Przyjaciel jest żwawy jak w Hollow Knight:** biegnie (przez cały ekran w 5 s), rusza i staje
+  od razu, stopy nie ślizgają się po ziemi, a spod nóg sypie się pył. W bezruchu stoi w czujnej
+  postawie i oddycha. Krawędzie sylwetki łapią światło od strony księżyca.
+- **Przewrót** (unik): przysiad, kłębek, przetoczenie o 60 px, przyklęk. W środku przewrotu postać
+  będzie nietykalna, gdy pojawią się przeciwnicy.
+- **Cięcia** przed siebie i w górę: szybki zamach i biała smuga sierpem (z góry w dół albo łukiem
+  nad głową), która po ułamku sekundy rozpada się. Można ciąć w biegu; świst ostrza słychać od razu.
+- **Księżyc żyje:** przez tarczę przepływa smuga chmur, poświata powoli „oddycha” razem ze snopami światła,
+  gwiazdy mrugają, a księżycowa ścieżka na wodzie skrzy się i drży. Mgły lekko dryfują.
+- **Dźwięki lasu:** wiatr w koronach drzew, chlupot wody przy brzegu (z prawej), dwa świerszcze,
+  co jakiś czas puszczyk i plusk ryby, kroki na mchu. Dźwięki z lewej strony sceny słychać z lewej.
+
+### Prototyp rytmu (`scenes/main.tscn`)
+
+Żeby go uruchomić, otwórz w edytorze scenę `scenes/main.tscn` i naciśnij **F6** (uruchom bieżącą scenę).
 
 Jedna 20-sekundowa walka zbudowana z pliku MIDI (`music/prototyp.mid`):
 
@@ -27,7 +47,11 @@ W grze nie ma żadnych napisów ani pasków.
 
 | Akcja | Klawiatura | Pad | Mysz |
 |---|---|---|---|
-| Cios | Spacja, J, Enter | A, X | lewy przycisk |
+| Ruch w lewo / w prawo | A / D, strzałki | krzyżak, lewa gałka | |
+| Cięcie | J | X | lewy przycisk |
+| Cięcie w górę | W lub strzałka w górę + cięcie | góra + X | |
+| Przewrót | K, Shift | B, RB | prawy przycisk |
+| Cios (prototyp rytmu) | Spacja, J, Enter | A, X | lewy przycisk |
 | Od nowa | R | Start | |
 | Wyjście | Esc | Back | |
 
@@ -44,6 +68,14 @@ możesz zmieniać m.in.:
 - **input_offset_ms**: kalibrację, gdy czujesz, że gra ocenia twoje ciosy jako spóźnione albo za wczesne.
 
 Węzeł **View** ma `glint_lead`, czyli ile sekund wcześniej widać zapowiedź ciosu.
+
+W scenie lasu (`scenes/forest_lake.tscn`):
+
+- węzeł **Friend**: prędkość biegu, rozpędzanie i hamowanie, długość i czas przewrotu,
+  czas cięcia i odstęp między cięciami, tempo oddechu,
+- węzeł **Ambience**: jak często odzywa się sowa i pluska ryba; głośność każdej pętli
+  ustawisz w jej węźle (Wind, Water, CricketLeft, CricketRight),
+- materiały warstw (np. **Sky**: szybkość chmur, siła „oddechu” poświaty; **Lake**: falowanie i iskry).
 
 ## Muzyka: jak komponować w LMMS
 
@@ -85,8 +117,14 @@ a ty pobierasz je i sprawdzasz w Godocie.
 ## Struktura
 
 ```
-project.godot          ustawienia projektu (320x180, pixel art, lekki renderer)
-scenes/main.tscn       scena prototypu
+project.godot          ustawienia projektu (480x270, pixel art, lekki renderer)
+scenes/forest_lake.tscn  scena startowa: las nad jeziorkiem, ruch postaci, dźwięki lasu
+scenes/main.tscn       scena prototypu rytmu (320x180)
+scripts/forest/        las: teren, ruch przyjaciela (FriendMotor), wygląd postaci, pył, dźwięki otoczenia
+shaders/               ruch księżyca, chmur, wody, mgły i poświata na sylwetce postaci
+grafika/               grafika od czatu graficznego (warstwy sceny, postacie, generator)
+sounds/otoczenie/      dźwięki lasu (WAV, do podmiany na nagrania)
+sounds/postac/         świst ostrza, przewrót, lądowanie
 scripts/main.gd        przebieg walki: intro → walka → cisza → nagroda / omdlenie
 scripts/midi/          czytanie plików MIDI
 scripts/music/         utwór: role ścieżek, nuty gracza (Cue), kursor po nutach
@@ -94,7 +132,7 @@ scripts/fight/         ocena trafień (Judge)
 scripts/audio/         syntezator: serce, boss, tło, szczęk oręża
 scripts/view/          obraz: kałuża, księżyc, fale, błyski, powieki, paleta
 music/prototyp.mid     utwór prototypu
-tools/                 generator demonstracyjnego MIDI
+tools/                 generatory: demonstracyjne MIDI, klatki ruchu postaci, dźwięki lasu
 tests/                 testy logiki
 docs/DESIGN.md         ustalenia projektowe
 ```

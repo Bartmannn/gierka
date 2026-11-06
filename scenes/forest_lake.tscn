@@ -1,0 +1,195 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/forest/forest_lake.gd" id="1_scene"]
+[ext_resource type="Script" path="res://scripts/forest/friend.gd" id="2_friend"]
+[ext_resource type="Script" path="res://scripts/forest/forest_ambience.gd" id="3_ambience"]
+[ext_resource type="Texture2D" path="res://grafika/sceny/las_jeziorko/warstwy/0_niebo.png" id="t0"]
+[ext_resource type="Texture2D" path="res://grafika/sceny/las_jeziorko/warstwy/1_las_daleki.png" id="t1"]
+[ext_resource type="Texture2D" path="res://grafika/sceny/las_jeziorko/warstwy/2_mgla_daleka.png" id="t2"]
+[ext_resource type="Texture2D" path="res://grafika/sceny/las_jeziorko/warstwy/3_plan_daleki.png" id="t3"]
+[ext_resource type="Texture2D" path="res://grafika/sceny/las_jeziorko/warstwy/4_jeziorko.png" id="t4"]
+[ext_resource type="Texture2D" path="res://grafika/sceny/las_jeziorko/warstwy/5_snopy_swiatla.png" id="t5"]
+[ext_resource type="Texture2D" path="res://grafika/sceny/las_jeziorko/warstwy/6_las_sredni.png" id="t6"]
+[ext_resource type="Texture2D" path="res://grafika/sceny/las_jeziorko/warstwy/7_mgla_niska.png" id="t7"]
+[ext_resource type="Texture2D" path="res://grafika/sceny/las_jeziorko/warstwy/8_ziemia.png" id="t8"]
+[ext_resource type="Texture2D" path="res://grafika/sceny/las_jeziorko/warstwy/10_pierwszy_plan.png" id="t10"]
+[ext_resource type="Texture2D" path="res://grafika/postacie/przyjaciel_ruch.png" id="t_friend"]
+[ext_resource type="Shader" path="res://shaders/night_sky.gdshader" id="s_sky"]
+[ext_resource type="Shader" path="res://shaders/mist_drift.gdshader" id="s_mist"]
+[ext_resource type="Shader" path="res://shaders/lake_shimmer.gdshader" id="s_lake"]
+[ext_resource type="Shader" path="res://shaders/moon_shafts.gdshader" id="s_shafts"]
+[ext_resource type="Shader" path="res://shaders/moonlit_silhouette.gdshader" id="s_rim"]
+[ext_resource type="AudioStream" path="res://sounds/otoczenie/wiatr.wav" id="a_wind"]
+[ext_resource type="AudioStream" path="res://sounds/otoczenie/woda.wav" id="a_water"]
+[ext_resource type="AudioStream" path="res://sounds/otoczenie/swierszcz_lewy.wav" id="a_cricket_l"]
+[ext_resource type="AudioStream" path="res://sounds/otoczenie/swierszcz_prawy.wav" id="a_cricket_r"]
+[ext_resource type="AudioStream" path="res://sounds/otoczenie/sowa.wav" id="a_owl"]
+[ext_resource type="AudioStream" path="res://sounds/otoczenie/plusk.wav" id="a_splash"]
+[ext_resource type="AudioStream" path="res://sounds/otoczenie/krok_1.wav" id="a_step1"]
+[ext_resource type="AudioStream" path="res://sounds/otoczenie/krok_2.wav" id="a_step2"]
+[ext_resource type="AudioStream" path="res://sounds/otoczenie/krok_3.wav" id="a_step3"]
+[ext_resource type="AudioStream" path="res://sounds/otoczenie/krok_4.wav" id="a_step4"]
+[ext_resource type="Script" path="res://scripts/forest/dust_puff.gd" id="4_dust"]
+[ext_resource type="Texture2D" path="res://grafika/efekty/ciecie.png" id="t_slash"]
+[ext_resource type="AudioStream" path="res://sounds/postac/swist_1.wav" id="a_swing1"]
+[ext_resource type="AudioStream" path="res://sounds/postac/swist_2.wav" id="a_swing2"]
+[ext_resource type="AudioStream" path="res://sounds/postac/swist_3.wav" id="a_swing3"]
+[ext_resource type="AudioStream" path="res://sounds/postac/przewrot.wav" id="a_roll"]
+[ext_resource type="AudioStream" path="res://sounds/postac/ladowanie.wav" id="a_land"]
+
+[sub_resource type="ShaderMaterial" id="m_sky"]
+shader = ExtResource("s_sky")
+
+[sub_resource type="ShaderMaterial" id="m_mist_far"]
+shader = ExtResource("s_mist")
+shader_parameter/amplitude = 2.0
+shader_parameter/period = 55.0
+shader_parameter/phase = 0.0
+
+[sub_resource type="ShaderMaterial" id="m_lake"]
+shader = ExtResource("s_lake")
+
+[sub_resource type="ShaderMaterial" id="m_shafts"]
+shader = ExtResource("s_shafts")
+
+[sub_resource type="ShaderMaterial" id="m_mist_low"]
+shader = ExtResource("s_mist")
+shader_parameter/amplitude = 4.0
+shader_parameter/period = 38.0
+shader_parameter/phase = 2.0
+
+[sub_resource type="ShaderMaterial" id="m_rim"]
+shader = ExtResource("s_rim")
+
+[node name="ForestLake" type="Node2D"]
+script = ExtResource("1_scene")
+
+[node name="Sky" type="Sprite2D" parent="."]
+material = SubResource("m_sky")
+texture = ExtResource("t0")
+centered = false
+
+[node name="FarForest" type="Sprite2D" parent="."]
+texture = ExtResource("t1")
+centered = false
+
+[node name="FarMist" type="Sprite2D" parent="."]
+material = SubResource("m_mist_far")
+texture = ExtResource("t2")
+centered = false
+
+[node name="FarShore" type="Sprite2D" parent="."]
+texture = ExtResource("t3")
+centered = false
+
+[node name="Lake" type="Sprite2D" parent="."]
+material = SubResource("m_lake")
+texture = ExtResource("t4")
+centered = false
+
+[node name="Shafts" type="Sprite2D" parent="."]
+material = SubResource("m_shafts")
+texture = ExtResource("t5")
+centered = false
+
+[node name="MidForest" type="Sprite2D" parent="."]
+texture = ExtResource("t6")
+centered = false
+
+[node name="LowMist" type="Sprite2D" parent="."]
+material = SubResource("m_mist_low")
+texture = ExtResource("t7")
+centered = false
+
+[node name="Ground" type="Sprite2D" parent="."]
+texture = ExtResource("t8")
+centered = false
+
+[node name="Friend" type="Node2D" parent="."]
+position = Vector2(120, 188)
+script = ExtResource("2_friend")
+step_sounds = Array[AudioStream]([ExtResource("a_step1"), ExtResource("a_step2"), ExtResource("a_step3"), ExtResource("a_step4")])
+swing_sounds = Array[AudioStream]([ExtResource("a_swing1"), ExtResource("a_swing2"), ExtResource("a_swing3")])
+dust = NodePath("../Dust")
+
+[node name="Sprite" type="Sprite2D" parent="Friend"]
+material = SubResource("m_rim")
+texture = ExtResource("t_friend")
+centered = false
+offset = Vector2(-40, -69)
+hframes = 8
+vframes = 5
+
+[node name="Slash" type="Sprite2D" parent="Friend"]
+visible = false
+texture = ExtResource("t_slash")
+centered = false
+offset = Vector2(-40, -69)
+hframes = 5
+vframes = 2
+
+[node name="Steps" type="AudioStreamPlayer2D" parent="Friend"]
+volume_db = -9.0
+max_distance = 1200.0
+
+[node name="Swing" type="AudioStreamPlayer2D" parent="Friend"]
+volume_db = -8.0
+max_distance = 1200.0
+
+[node name="Roll" type="AudioStreamPlayer2D" parent="Friend"]
+stream = ExtResource("a_roll")
+volume_db = -10.0
+max_distance = 1200.0
+
+[node name="Land" type="AudioStreamPlayer2D" parent="Friend"]
+stream = ExtResource("a_land")
+volume_db = -10.0
+max_distance = 1200.0
+
+[node name="Dust" type="Node2D" parent="."]
+script = ExtResource("4_dust")
+
+[node name="Foreground" type="Sprite2D" parent="."]
+texture = ExtResource("t10")
+centered = false
+
+[node name="Ambience" type="Node2D" parent="."]
+script = ExtResource("3_ambience")
+
+[node name="Wind" type="AudioStreamPlayer" parent="Ambience"]
+stream = ExtResource("a_wind")
+volume_db = -4.0
+metadata/loop = true
+
+[node name="Water" type="AudioStreamPlayer2D" parent="Ambience"]
+position = Vector2(330, 172)
+stream = ExtResource("a_water")
+volume_db = -7.0
+max_distance = 1200.0
+metadata/loop = true
+
+[node name="CricketLeft" type="AudioStreamPlayer2D" parent="Ambience"]
+position = Vector2(70, 200)
+stream = ExtResource("a_cricket_l")
+volume_db = -19.0
+max_distance = 1200.0
+metadata/loop = true
+
+[node name="CricketRight" type="AudioStreamPlayer2D" parent="Ambience"]
+position = Vector2(430, 196)
+stream = ExtResource("a_cricket_r")
+volume_db = -22.0
+max_distance = 1200.0
+metadata/loop = true
+
+[node name="Owl" type="AudioStreamPlayer2D" parent="Ambience"]
+position = Vector2(40, 40)
+stream = ExtResource("a_owl")
+volume_db = -10.0
+max_distance = 1200.0
+
+[node name="Splash" type="AudioStreamPlayer2D" parent="Ambience"]
+position = Vector2(330, 160)
+stream = ExtResource("a_splash")
+volume_db = -9.0
+max_distance = 1200.0

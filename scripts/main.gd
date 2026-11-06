@@ -71,6 +71,8 @@ var _fade: Tween
 
 
 func _ready() -> void:
+	# Prototyp rytmu rysuje na siatce 320x180, a reszta gry ma 480x270.
+	get_window().content_scale_size = PuddleView.SCREEN
 	_read_command_line()
 	InputSetup.ensure_actions()
 	_setup_audio_buses()

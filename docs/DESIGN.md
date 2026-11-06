@@ -56,7 +56,8 @@ Dokument zbiera decyzje projektowe. Gdy coś się zmieni, poprawiamy go tutaj,
 
 ## Technologia
 - **Godot 4 (4.7), od razu, bez prototypu w przeglądarce.** GDScript, renderer GL Compatibility
-  (najlżejszy), rozdzielczość wewnętrzna 320×180 skalowana całkowitą wielokrotnością.
+  (najlżejszy), rozdzielczość wewnętrzna 480×270 (taką ma grafika sceny lasu), skalowana
+  całkowitą wielokrotnością. Prototyp rytmu został przy 320×180.
 - Muzyka: LMMS → eksport MIDI → gra czyta plik MIDI i sama z niego buduje walkę.
 - Alternatywa na później: raylib, jeśli ważniejszy będzie mały plik wykonywalny.
 - Assembler odrzucony: mały zysk wydajności, utrata przenośności i droższe poprawki.
@@ -84,5 +85,9 @@ Dokument zbiera decyzje projektowe. Gdy coś się zmieni, poprawiamy go tutaj,
 1. **Prototyp rytmu (zrobiony):** 20 sekund motywu z MIDI, serce w tle, jeden przycisk
    do wybijania nut na zapowiedziane sygnały, przytomność zamiast paska zdrowia,
    cisza i pełny utwór po wygranej.
-2. **Następny test: walka w odbiciu.** Sylwetki przyjaciela i bossa w kałuży, odwrócenie obrazu,
+2. **Scena lasu z ruchem (zrobiona):** las nad jeziorkiem z grafiki, przyjaciel chodzi w lewo i w prawo,
+   animowany księżyc (chmury, poświata), woda, mgła i dźwięki lasu. Bez przeciwnika.
+3. **Ruch bojowy (zrobiony, bez przeciwnika):** żwawy bieg, przewrót (unik), cięcia przed siebie i w górę
+   z białą smugą, w stylu Hollow Knight, bez skoku. Cięcia nie są jeszcze powiązane z rytmem MIDI.
+4. **Następny test: walka w odbiciu.** Sylwetki przyjaciela i bossa w kałuży, odwrócenie obrazu,
    sprawdzenie czytelności szybkich ataków.

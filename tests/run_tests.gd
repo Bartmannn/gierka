@@ -16,6 +16,13 @@ func _init() -> void:
 	test_judge_late_misses()
 	test_note_cursor()
 	test_synth_renders_sound()
+	test_friend_stands_on_ground()
+	test_friend_sprite_sheet()
+	test_ambience_loops()
+	test_motor_runs_fast()
+	test_motor_roll()
+	test_motor_attack_cooldown_and_buffer()
+	test_motor_attack_keeps_facing()
 	print("%d sprawdzeń, %d błędów" % [_checks, _failures])
 	quit(1 if _failures > 0 else 0)
 
@@ -135,3 +142,143 @@ func test_synth_renders_sound() -> void:
 			"instrument %s brzmi (szczyt %.2f)" % [Synth.Instrument.keys()[instrument], peak])
 	var stream := Synth.to_stream(PackedFloat32Array([0.0, 2.0, -2.0]))
 	check(stream.data.decode_s16(2) > 30000 and stream.data.decode_s16(4) < -30000, "głośny bufor jest ściszany, nie przycinany")
+
+
+# --- Scena lasu ----------------------------------------------------------------
+
+func test_friend_stands_on_ground() -> void:
+	# Wiersz pod stopami musi być ziemią w grafice, a kilka pikseli wyżej musi być już pusto
+	# (poza trzcinami przy jeziorku, od x=196) - inaczej postać wisi w powietrzu albo tonie w gruncie.
+	var ground := (load("res://grafika/sceny/las_jeziorko/warstwy/8_ziemia.png") as Texture2D).get_image()
+	var bad: Array[int] = []
+	for x in range(int(ForestTerrain.WALK_MIN_X), int(ForestTerrain.WALK_MAX_X) + 1):
+		var y := ForestTerrain.ground_y(x)
+		var solid_below := ground.get_pixel(x, y).a > 0.5 and ground.get_pixel(x, y + 3).a > 0.5
+		var open_above := x >= 196 or ground.get_pixel(x, y - 7).a < 0.5
+		if not (solid_below and open_above):
+			bad.append(x)
+	check(bad.is_empty(), "postać stoi na ziemi z grafiki (złe kolumny: %s)" % [bad.slice(0, 10)])
+
+
+func test_friend_sprite_sheet() -> void:
+	var sheet := (load("res://grafika/postacie/przyjaciel_ruch.png") as Texture2D).get_image()
+	var size := Friend.FRAME_SIZE
+	check(sheet.get_size() == Vector2i(size.x * Friend.COLUMNS, size.y * 5), "arkusz postaci ma 8x5 klatek 80x72")
+	# Ostatni wiersz nad ziemią (68) musi dotykać: stanie, postawienie stopy w biegu, cały przewrót, cięcia.
+	var grounded := {
+		Friend.ROW_IDLE: range(Friend.IDLE_FRAMES),
+		Friend.ROW_RUN: Friend.RUN_CONTACT_FRAMES,
+		Friend.ROW_ROLL: range(Friend.ROLL_FRAMES),
+		Friend.ROW_ATTACK_SIDE: range(Friend.ATTACK_FRAMES),
+		Friend.ROW_ATTACK_UP: range(Friend.ATTACK_FRAMES),
+	}
+	for row: int in grounded:
+		for k: int in grounded[row]:
+			var touches := false
+			for x in size.x:
+				if sheet.get_pixel(k * size.x + x, row * size.y + 68).a > 0.5:
+					touches = true
+			check(touches, "klatka %d w rzędzie %d stoi na ziemi" % [k, row])
+	var slash := (load("res://grafika/efekty/ciecie.png") as Texture2D).get_image()
+	check(slash.get_size() == Vector2i(size.x * Friend.SLASH_FRAMES, size.y * 2), "arkusz smugi ma 5x2 klatek 80x72")
+
+
+func test_ambience_loops() -> void:
+	for path in ["wiatr", "woda", "swierszcz_lewy", "swierszcz_prawy"]:
+		var stream := load("res://sounds/otoczenie/%s.wav" % path) as AudioStreamWAV
+		check(stream != null and stream.loop_mode == AudioStreamWAV.LOOP_FORWARD,
+			"%s.wav gra w pętli" % path)
+
+
+# --- Ruch przyjaciela (FriendMotor) ----------------------------------------------
+
+const STEP := 1.0 / 60.0
+
+
+## Przewija logikę o podany czas; zwraca wszystkie zdarzenia z czasem ich wystąpienia.
+func _run_motor(motor: FriendMotor, seconds: float, axis: float = 0.0, up: bool = false) -> Array:
+	var log := []
+	var t := 0.0
+	while t < seconds - 0.0001:
+		for e in motor.update(STEP, axis, up, false, false):
+			log.append([e, t])
+		t += STEP
+	return log
+
+
+func test_motor_runs_fast() -> void:
+	var motor := FriendMotor.new()
+	motor.x = 200.0
+	_run_motor(motor, 0.1, 1.0)
+	check(near(motor.velocity, motor.run_speed), "pełna prędkość biegu po 0,1 s (jest %.1f)" % motor.velocity)
+	check(motor.state == FriendMotor.State.RUN, "stan: bieg")
+	_run_motor(motor, 0.1, 0.0)
+	check(motor.velocity == 0.0 and motor.state == FriendMotor.State.IDLE, "zatrzymanie w 0,1 s")
+	_run_motor(motor, 10.0, 1.0)
+	check(motor.x == ForestTerrain.WALK_MAX_X, "bieg kończy się na krawędzi sceny")
+
+
+func test_motor_roll() -> void:
+	var motor := FriendMotor.new()
+	motor.x = 200.0
+	motor.update(STEP, 0.0, false, false, true)
+	check(motor.state == FriendMotor.State.ROLL, "przewrót z miejsca")
+	var time := STEP
+	var protected := false
+	while motor.state == FriendMotor.State.ROLL and time < 2.0:
+		motor.update(STEP, 0.0, false, false, false)
+		protected = protected or motor.is_invulnerable()
+		time += STEP
+	check(near(motor.x - 200.0, motor.roll_distance, 0.01), "przewrót pokonuje %.0f px (jest %.1f)" % [motor.roll_distance, motor.x - 200.0])
+	check(absf(time - motor.roll_time) <= STEP * 1.5, "przewrót trwa %.2f s (jest %.2f)" % [motor.roll_time, time])
+	check(protected and not motor.is_invulnerable(), "nietykalność tylko w trakcie przewrotu")
+	# przy krawędzi sceny przewrót się zatrzymuje
+	motor = FriendMotor.new()
+	motor.x = ForestTerrain.WALK_MAX_X - 10.0
+	motor.update(STEP, 1.0, false, false, true)
+	_run_motor(motor, 1.0)
+	check(motor.x == ForestTerrain.WALK_MAX_X, "przewrót nie wychodzi poza scenę")
+	# przewrót przerywa cięcie
+	motor = FriendMotor.new()
+	motor.update(STEP, 0.0, false, true, false)
+	motor.update(STEP, 0.0, false, false, true)
+	check(motor.state == FriendMotor.State.ROLL, "przewrót przerywa cięcie")
+
+
+func test_motor_attack_cooldown_and_buffer() -> void:
+	var motor := FriendMotor.new()
+	motor.x = 200.0
+	var swings: Array[float] = []
+	var t := 0.0
+	# cios na starcie, drugi wciśnięty za wcześnie (0,1 s), trzeci tuż przed końcem przerwy (0,25 s)
+	for press_at: float in [0.0, 0.1, 0.25]:
+		while t < press_at - 0.0001:
+			if motor.update(STEP, 0.0, false, false, false).has(&"swing"):
+				swings.append(t)
+			t += STEP
+		if motor.update(STEP, 0.0, false, true, false).has(&"swing"):
+			swings.append(t)
+		t += STEP
+	while t < 1.0:
+		if motor.update(STEP, 0.0, false, false, false).has(&"swing"):
+			swings.append(t)
+		t += STEP
+	check(swings.size() == 2, "zbyt wczesne wciśnięcie przepada, zapamiętane wchodzi (cięć: %d)" % swings.size())
+	if swings.size() == 2:
+		check(absf(swings[1] - motor.attack_cooldown) <= STEP * 1.5,
+			"drugie cięcie zaraz po przerwie (%.2f s)" % swings[1])
+	motor.update(STEP, 0.0, true, true, false)
+	_run_motor(motor, 0.5)
+	motor.update(STEP, 0.0, true, true, false)
+	check(motor.state == FriendMotor.State.ATTACK_UP, "góra + atak = cięcie w górę")
+
+
+func test_motor_attack_keeps_facing() -> void:
+	var motor := FriendMotor.new()
+	motor.x = 200.0
+	motor.update(STEP, 0.0, false, true, false)
+	_run_motor(motor, 0.1, -1.0)
+	check(motor.facing == 1 and motor.is_attacking(), "w trakcie cięcia postać się nie odwraca")
+	check(motor.x < 200.0, "w trakcie cięcia można się przesuwać")
+	_run_motor(motor, 0.3, -1.0)
+	check(motor.facing == -1 and motor.state == FriendMotor.State.RUN, "po cięciu odwraca się i biegnie")

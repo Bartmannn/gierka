@@ -6,7 +6,7 @@ config_version=5
 
 config/name="gierka"
 config/description="Gra 2D o walkach z bossami, w których muzyka powstaje w trakcie walki."
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/forest_lake.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
 [audio]
@@ -15,10 +15,10 @@ driver/output_latency=15
 
 [display]
 
-window/size/viewport_width=320
-window/size/viewport_height=180
-window/size/window_width_override=1280
-window/size/window_height_override=720
+window/size/viewport_width=480
+window/size/viewport_height=270
+window/size/window_width_override=1440
+window/size/window_height_override=810
 window/stretch/mode="viewport"
 window/stretch/scale_mode="integer"
 
